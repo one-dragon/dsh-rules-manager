@@ -1,0 +1,10 @@
+# @one-dragon/dsh-rules-manager bundle layer.
+# Mounts the plugin without configuration; all settings live in the panel.
+#
+# The `id` is the cordis entry key and is deliberately short, so it stays
+# readable and cannot collide with an entry id another bundle happens to use.
+# The `name` is the npm package name, which Node module resolution locates
+# among the profile's installed dependencies.
+- insert:
+    - id: rules-manager
+      name: '@one-dragon/dsh-rules-manager'

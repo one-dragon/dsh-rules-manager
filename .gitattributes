@@ -1,0 +1,8 @@
+# Git 的 text 属性：文件加入索引时把行尾归一为 LF；eol 只在 text 或 text=auto 设定后生效。
+# 显式写死 eol=lf，是为了不受 core.autocrlf（本机为 true）影响，让任何平台的检出结果一致。
+# https://git-scm.com/docs/gitattributes
+* text=auto eol=lf
+
+# lib/ 是随包提交的构建产物，不该计入 GitHub 的语言统计。
+# https://github.com/github-linguist/linguist/blob/main/docs/overrides.md
+lib/* linguist-generated=true

@@ -1,0 +1,18 @@
+node_modules/
+# lib/ is committed: a git install of this bundle needs the built artifacts.
+# `main` is lib/index.js and the client half is lib/client.js, so a checkout
+# without them cannot be added as a bundle. Same reasoning as
+# dsh-superagent-windows/.gitignore.
+.artifacts/
+coverage/
+*.log
+# Local scratch: probe scripts and inspection dumps live outside the repo
+# (they carry machine-specific paths), but keep them out if one is written here.
+/*.mts
+/*.mjs
+/*.html
+/*.tgz
+/scratch/
+# Editor and OS noise
+.DS_Store
+.env

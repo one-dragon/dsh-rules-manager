@@ -1,0 +1,16 @@
+# EditorConfig 规范：https://spec.editorconfig.org/
+# 本仓库对换行与空白作出的四条承诺，由 scripts/delivery-check.mts 第 14 节核验。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# CommonMark 规范 6.7 节：行尾两个及以上空格是硬换行，Markdown 必须保留它们。
+# https://spec.commonmark.org/0.31.2/
+[*.md]
+trim_trailing_whitespace = false
