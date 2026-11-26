@@ -269,6 +269,7 @@ npm install
 npm run typecheck            # tsc --noEmit
 npm run test                 # vitest, the whole suite (22 spec files)
 npm run test:integration      # real project, real rule files
+npm run test:e2e             # real DSH session + local model stub, no credentials
 npm run build                # tsdown -> lib/
 npm run verify               # delivery checks (manifest, README claims, read-only)
 npm run check                # typecheck + test + build + verify

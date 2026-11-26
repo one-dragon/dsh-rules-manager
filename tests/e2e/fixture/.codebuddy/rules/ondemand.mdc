@@ -1,0 +1,9 @@
+---
+description: ONDEMAND_DESCRIPTION_MARKER 按需夹具规则，只有描述常驻
+alwaysApply: false
+paths:
+  - src/**/*.ts
+---
+
+ONDEMAND_BODY_MARKER_BETA: 这段正文属于按需规则，只有在 read_rules 被调用时才该出现。
+它绝不能出现在常驻的注入块里。

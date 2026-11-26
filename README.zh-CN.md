@@ -258,6 +258,7 @@ npm install
 npm run typecheck            # tsc --noEmit
 npm run test                 # vitest，全量套件（22 个 spec 文件）
 npm run test:integration      # 真实项目 + 真实规则文件
+npm run test:e2e             # 真实 DSH 会话 + 本地模型 stub，无需凭据
 npm run build                # tsdown -> lib/
 npm run verify               # 交付检查（清单、README 主张、只读承诺）
 npm run check                # typecheck + test + build + verify

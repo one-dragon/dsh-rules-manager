@@ -32,6 +32,8 @@ const REQUIRED = [
   'tests/attach.spec.ts', 'tests/cost.spec.ts', 'tests/panel-ui.spec.tsx', 'tests/rules-sources.spec.ts',
   'tests/selection.spec.ts', 'tests/workspace.spec.ts',
   'tests/integration/real-project.mts',
+  'tests/e2e/smoke.mts', 'tests/e2e/fixture/.codebuddy/rules/resident.mdc',
+  'tests/e2e/fixture/.codebuddy/rules/ondemand.mdc', 'tests/e2e/fixture/src/app.ts',
 ]
 const missing = REQUIRED.filter((f) => !fs.existsSync(path.join(ROOT, f)))
 check(`${REQUIRED.length} 个必需文件齐全`, missing.length === 0, missing.join(', '))
@@ -58,6 +60,7 @@ check('files 含 cordis.patch.yml', pj.files.includes('cordis.patch.yml'))
 check('icon 字段存在且文件存在', pj.icon && fs.existsSync(path.join(ROOT, pj.icon)))
 check('keywords 含 dsh-plugin', pj.keywords.includes('dsh-plugin'))
 check('engines.dsh 已声明', typeof pj.engines?.dsh === 'string')
+check('scripts 含 test:e2e', typeof pj.scripts?.['test:e2e'] === 'string')
 check('engines.node 已声明', typeof pj.engines?.node === 'string')
 check('picomatch 在 dependencies（不依赖宿主）', pj.dependencies?.picomatch !== undefined)
 check('客户端 peer 标 optional', pj.peerDependenciesMeta?.['@deepseek-ai/dsh-client-ui-slots']?.optional === true)
@@ -76,6 +79,7 @@ check('README 载明四级键解析', en.includes('case-insensitive') && en.incl
 check('README 载明只读承诺', en.includes('Read-only') || en.includes('read-only'))
 check('README 有 Known limitations 段', en.includes('## Known limitations'))
 check('README 说明与 AGENTS.md 的关系', en.includes('dsh-agent-instructions'))
+check('README 记录 test:e2e 入口', en.includes('npm run test:e2e') && zh.includes('npm run test:e2e'))
 check('README 说明 Windows npm 坑', en.includes('exit 126') || en.includes('npm-cli.js'))
 check('README 提到 safeSlice 上游错误', en.includes('CodeBuddy') && en.includes('safeSlice'))
 check('中文 README 与英文结构对齐', (zh.match(/^## /gm) || []).length === (en.match(/^## /gm) || []).length,

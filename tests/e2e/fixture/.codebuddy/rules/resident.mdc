@@ -1,0 +1,7 @@
+---
+description: 常驻夹具规则
+alwaysApply: true
+---
+
+RESIDENT_MARKER_ALPHA: 这条规则 alwaysApply 为真，正文必须整段进入注入块。
+它用来证明常驻规则的正文确实到达了模型可见的请求里。

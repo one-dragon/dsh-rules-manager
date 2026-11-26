@@ -72,6 +72,7 @@
     "test": "vitest run",
     "check": "npm run typecheck && npm run test && npm run build && npm run verify",
     "test:integration": "node --experimental-strip-types tests/integration/real-project.mts",
+    "test:e2e": "node --experimental-strip-types tests/e2e/smoke.mts",
     "verify": "node --experimental-strip-types scripts/delivery-check.mts"
   },
   "dependencies": {
