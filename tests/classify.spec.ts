@@ -174,3 +174,17 @@ describe('classify — strict sources require a trigger', () => {
     expect(strict('---\ntrigger: manual\n---\nb\n').family).toBe('agents')
   })
 })
+
+describe('classify — the family a source key names', () => {
+  it('maps Amazon Q onto its own family rather than the default', () => {
+    // `familyOf` carries one case per convention, and Amazon Q's is reachable
+    // only through its own key: without the case the family would silently
+    // fall back to CodeBuddy and the panel would group two conventions
+    // together.
+    const fm = splitFrontmatter('---\ndescription: shell habits\n---\nbody\n')
+    const verdict = classify({ frontmatter: fm, sourceKey: 'amazonq' })
+    expect(verdict.isRule).toBe(true)
+    expect(verdict.family).toBe('amazonq')
+  })
+})
+

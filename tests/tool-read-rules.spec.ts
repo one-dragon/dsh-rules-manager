@@ -137,6 +137,7 @@ describe('formatResolved', () => {
 describe('createReadRulesTool — an ambiguous key reaches the model', () => {
   const tool = createReadRulesTool(() => index) as unknown as {
     description: string
+    output: { render(args: unknown, value: unknown): Array<{ type: string; text: string }> }
     execute(args: unknown, exec: unknown): Promise<{
       content: string
       resolvedCount: number
@@ -206,4 +207,50 @@ describe('createReadRulesTool — an ambiguous key reaches the model', () => {
     expect(tool.description).toContain('candidates')
     expect(tool.description).toContain('exact absolute path')
   })
+
+  it('renders the tool value as one text block for the model', () => {
+    // The render projection is the only path from the canonical value to model
+    // content; calling `execute` alone left it never exercised. The block has
+    // to carry the very content the tool returned, or the model reads a
+    // different document from the one the host counted.
+    return (async () => {
+      const value = await tool.execute({ ruleNames: ['ts-standard.mdc'] }, { agent: undefined })
+      const blocks = tool.output.render({ ruleNames: ['ts-standard.mdc'] }, value)
+      expect(blocks).toHaveLength(1)
+      expect(blocks[0]?.type).toBe('text')
+      expect(blocks[0]?.text).toBe(value.content)
+      expect(blocks[0]?.text).toContain('<rule name="ts-standard"')
+    })()
+  })
+
+  it('drops a slot that is not a rule name instead of failing the batch', () => {
+    // The parameter is a bare array with no item schema, so a slot can arrive
+    // as something other than a string; the batch still has to answer for the
+    // names that were strings.
+    return (async () => {
+      const out = await tool.execute({ ruleNames: ['ts-standard.mdc', 42, null] }, { agent: undefined })
+      expect(out.resolvedCount).toBe(1)
+      expect(out.content).toContain('<rule name="ts-standard"')
+      expect(out.notFoundCount).toBe(0)
+      expect(out.ambiguousCount).toBe(0)
+    })()
+  })
 })
+
+describe('resolveRequested — names that collide', () => {
+  it('reports each of two requested names that match more than one rule', () => {
+    // The name tier can be ambiguous exactly like the basename tier: both
+    // rules carry the names that were asked for, twice over.
+    const r = resolveRequested(
+      {
+        '/repo/a/shared.mdc': { path: '/repo/a/shared.mdc', name: 'shared', body: 'A' },
+        '/repo/b/shared.mdc': { path: '/repo/b/shared.mdc', name: 'shared', body: 'B' },
+      },
+      ['shared'],
+    )
+    expect(r.resolved).toEqual([])
+    expect(r.ambiguous).toHaveLength(1)
+    expect(r.ambiguous[0]?.candidates).toHaveLength(2)
+  })
+})
+

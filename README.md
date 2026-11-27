@@ -267,9 +267,13 @@ it is absent.
 ```sh
 npm install
 npm run typecheck            # tsc --noEmit
-npm run test                 # vitest, the whole suite (22 spec files)
+npm run test                 # vitest, the whole suite (25 spec files)
+npm run test:coverage        # the same suite with the per-file 100% coverage gate
 npm run test:integration      # real project, real rule files
 npm run test:e2e             # real DSH session + local model stub, no credentials
+npm run test:snapshot        # recorded session transcript, compared byte for byte
+npm run test:browser         # real headless browser renders the panel, compared byte for byte
+npm run test:bench           # scan, render, attach and read_rules timings
 npm run build                # tsdown -> lib/
 npm run verify               # delivery checks (manifest, README claims, read-only)
 npm run check                # typecheck + test + build + verify

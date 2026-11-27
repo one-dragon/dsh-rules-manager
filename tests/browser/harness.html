@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>dsh-rules-manager panel browser snapshot harness</title>
+</head>
+<body>
+<div id="root"></div>
+<div id="root2"></div>
+<div id="root3"></div>
+<script>
+// Error and write-request capture, installed before any library loads so a
+// failure while the bundle itself is evaluated is reported too.
+window.__dshrmErrors = []
+window.onerror = function (message, source, line, column) {
+  window.__dshrmErrors.push("onerror: " + String(message) + " @ " + String(source) + ":" + String(line) + ":" + String(column))
+  return false
+}
+window.addEventListener("unhandledrejection", function (event) {
+  window.__dshrmErrors.push("unhandledrejection: " + String(event.reason))
+})
+console.error = function () {
+  var parts = []
+  for (var i = 0; i < arguments.length; i += 1) parts.push(String(arguments[i]))
+  window.__dshrmErrors.push("console.error: " + parts.join(" "))
+}
+window.__dshrmRequires = []
+window.__dshrmPosts = []
+window.__dshrmFetch = window.fetch.bind(window)
+window.fetch = function (input, init) {
+  var method = init && init.method ? String(init.method).toUpperCase() : "GET"
+  if (method === "POST") {
+    var url = typeof input === "string" ? input : (input && input.url ? String(input.url) : String(input))
+    window.__dshrmPosts.push({ url: url, body: init && typeof init.body === "string" ? init.body : "" })
+  }
+  return window.__dshrmFetch(input, init)
+}
+</script>
+<script src="/react.js"></script>
+<script src="/react-dom.js"></script>
+<script src="/jsx-runtime.js"></script>
+<script>
+// The bundle is a raw module-loader payload whose first line is
+// window.__ModuleLoader__.load({ id: ..., factory: (require) => { ... } }), so
+// the loader has to exist before /client.js runs and has to hand back whatever
+// the factory returns.
+window.__ModuleLoader__ = {
+  load: function (spec) {
+    window.__dshrmSpec = { id: spec.id }
+    window.__dshrmModule = spec.factory(function (name) {
+      window.__dshrmRequires.push(name)
+      if (name === "react") return window.React
+      if (name === "react/jsx-runtime") return window.__dshrmJsxRuntime
+      throw new Error("unexpected require: " + name)
+    })
+  }
+}
+</script>
+<script src="/client.js"></script>
+<script>
+(function () {
+  var report = {
+    snapshots: [],
+    posts: [],
+    errors: [],
+    meta: { ua: navigator.userAgent, requires: [], specId: "", injected: [], registered: [], secondRender: "", disposer: "" }
+  }
+
+  function sleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
+
+  function waitFor(label, timeoutMs, probe) {
+    var started = Date.now()
+    return new Promise(function (resolve, reject) {
+      function tick() {
+        var value = false
+        try { value = probe() } catch (error) { value = false }
+        if (value) { resolve(value); return }
+        if (Date.now() - started > timeoutMs) { reject(new Error("timeout waiting for " + label)); return }
+        setTimeout(tick, 25)
+      }
+      tick()
+    })
+  }
+
+  function send() {
+    report.posts = window.__dshrmPosts
+    if (report.errors.length === 0) report.errors = window.__dshrmErrors
+    return window.__dshrmFetch("/report", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(report)
+    })
+  }
+
+  async function run() {
+    var mod = window.__dshrmModule
+    if (mod === undefined || mod === null) throw new Error("the client bundle never called __ModuleLoader__.load")
+    var text = function (key) { return mod.TEXT.en[key] !== undefined ? mod.TEXT.en[key] : key }
+    var injected = []
+    var registered = {}
+    var fakeCtx = {
+      slots: {
+        inject: function (name, callback) {
+          injected.push(name)
+          var result = callback()
+          return typeof result === "function" ? result : function () {}
+        },
+        register: function (definition, component) {
+          registered[definition.name] = component
+          return function () {}
+        }
+      },
+      effect: function (callback) {
+        var result = callback()
+        return typeof result === "function" ? result : function () {}
+      },
+      get: function () { return undefined }
+    }
+    var dispose = mod.apply(fakeCtx)
+    var Panel = registered["settings.section"]
+    if (typeof Panel !== "function") throw new Error("the settings.section slot registered no component")
+
+    report.meta.specId = window.__dshrmSpec ? window.__dshrmSpec.id : ""
+    report.meta.requires = window.__dshrmRequires.slice()
+    report.meta.injected = injected.slice()
+    report.meta.registered = Object.keys(registered)
+    report.meta.disposer = typeof dispose
+
+    var rootA = window.ReactDOM.createRoot(document.getElementById("root"))
+    var rootB = window.ReactDOM.createRoot(document.getElementById("root2"))
+    rootA.render(window.React.createElement(Panel))
+    rootB.render(window.React.createElement(Panel))
+    await waitFor("the first panel to render rules", 20000, function () {
+      return document.getElementById("root").innerHTML.indexOf("beta.mdc") !== -1
+    })
+    await waitFor("the second panel to render rules", 20000, function () {
+      return document.getElementById("root2").innerHTML.indexOf("beta.mdc") !== -1
+    })
+    await sleep(50)
+    report.snapshots[0] = document.getElementById("root").innerHTML
+    report.meta.secondRender = document.getElementById("root2").innerHTML
+
+    var scopeTab = document.getElementById("dsh-rules-manager-scope-tab-user")
+    if (scopeTab === null) throw new Error("the Global scope tab was not rendered")
+    scopeTab.click()
+    await waitFor("the user scope tab to take effect", 10000, function () {
+      return document.getElementById("root").innerHTML.indexOf("eta.md") !== -1
+    })
+    await sleep(50)
+    report.snapshots[1] = document.getElementById("root").innerHTML
+
+    var row = document.querySelector('li[data-rule="home/.claude/eta.md"]')
+    var toggle = row === null ? null : row.querySelector('input[role="switch"]')
+    if (toggle === null) throw new Error("the eta rule switch was not rendered")
+    if (toggle.checked !== true) throw new Error("the eta rule switch was already off before the click")
+    toggle.click()
+    await waitFor("the setRule write request", 10000, function () { return window.__dshrmPosts.length > 0 })
+    await waitFor("the eta row to render as off", 10000, function () {
+      var li = document.querySelector('li[data-rule="home/.claude/eta.md"]')
+      return li !== null && li.className.indexOf("dshrm-off") !== -1
+    })
+    await sleep(50)
+    report.snapshots[2] = document.getElementById("root").innerHTML
+
+    var rootC = window.ReactDOM.createRoot(document.getElementById("root3"))
+    rootC.render(window.React.createElement(mod.RulesPanel, {
+      ctx: fakeCtx,
+      t: text,
+      rules: [],
+      sources: [],
+      workspace: { path: null, source: "none" },
+      scannedAt: 0,
+      state: "ready",
+      onRetry: function () {},
+      onToggleRule: function () {},
+      onToggleSource: function () {},
+      pending: [],
+      error: null,
+      scanDiagnostics: [],
+      truncated: false
+    }))
+    await waitFor("the empty-workspace variant", 10000, function () {
+      return document.getElementById("root3").innerHTML.indexOf("dshrm-empty") !== -1
+    })
+    report.snapshots[3] = document.getElementById("root3").innerHTML
+  }
+
+  run().then(send, function (error) {
+    report.errors = window.__dshrmErrors.slice()
+    report.errors.push("harness: " + String(error && error.message ? error.message : error))
+    return send()
+  })
+})()
+</script>
+</body>
+</html>

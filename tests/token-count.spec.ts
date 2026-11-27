@@ -56,3 +56,24 @@ describe('truncateForCatalog', () => {
     expect(truncateForCatalog('abcdefgh', 5)).toBe('ab...')
   })
 })
+
+describe('estimateTokens — every CJK range the table declares', () => {
+  it('counts modern Hangul syllables and Hangul Jamo Extended-A as CJK', () => {
+    // Two separate ranges in `isCjk`: 0xAC00 (Hangul syllables) and 0xA960
+    // (the extended Jamo block). A Hangul file is common enough that a range
+    // dropped from the chain would show up as a wrong cost figure.
+    expect(estimateTokens('\uAC00')).toBe(1)
+    expect(estimateTokens('\uA960')).toBe(1)
+    expect(estimateTokens('\uAC00\uA960')).toBe(2)
+  })
+
+  it('counts compatibility ideographs and fullwidth forms as CJK', () => {
+    // 0xF900 (CJK compatibility ideographs) and 0xFF21 (a fullwidth letter):
+    // the second is the one a Latin-only rule would misread as an unknown
+    // character and charge as punctuation.
+    expect(estimateTokens('\uF900')).toBe(1)
+    expect(estimateTokens('\uFF21')).toBe(1)
+    expect(estimateTokens('\uAC00\uF900\uFF21')).toBe(3)
+  })
+})
+

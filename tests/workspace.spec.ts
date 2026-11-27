@@ -137,3 +137,18 @@ describe('resolveWorkspace — precedence', () => {
     expect(out.candidates).toEqual(['D:/same'])
   })
 })
+
+describe('sessionCwds — a sessions service that cannot list', () => {
+  it('answers nothing rather than throwing when get exists but list does not', () => {
+    // A partial host service: `get` was added by one version and `list` is
+    // absent. The tier has to read as empty instead of raising out of the
+    // panel's workspace probe.
+    expect(sessionCwds({ get: () => undefined })).toEqual([])
+    expect(sessionCwds({ get: () => undefined } as never, 'abc')).toEqual([])
+  })
+
+  it('still reads a named session through get alone', () => {
+    expect(sessionCwds({ get: (id: string) => ({ cwd: 'D:/' + id }) }, 'abc')).toEqual(['D:/abc'])
+  })
+})
+

@@ -11,7 +11,7 @@ import { resolveWorkspace } from '../src/workspace.ts'
 // Derived, never hard-coded: the check must run in any clone, including CI.
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 let fails = 0
-const check = (label, cond, detail = '') => {
+const check = (label: string, cond: unknown, detail: string | number = ''): void => {
   if (cond) console.log(`  OK   ${label}`)
   else { console.log(`  BAD  ${label}${detail ? '  → ' + detail : ''}`); fails++ }
 }
@@ -30,17 +30,26 @@ const REQUIRED = [
   'tests/tool-read-rules.spec.ts', 'tests/state.spec.ts', 'tests/config.spec.ts', 'tests/scenarios.spec.ts', 'tests/entry.spec.ts', 'tests/styles.spec.ts',
   'tests/agents-standard.spec.ts', 'tests/client.spec.tsx',
   'tests/attach.spec.ts', 'tests/cost.spec.ts', 'tests/panel-ui.spec.tsx', 'tests/rules-sources.spec.ts',
-  'tests/selection.spec.ts', 'tests/workspace.spec.ts',
+  'tests/selection.spec.ts', 'tests/workspace.spec.ts', 'tests/routes.spec.ts',
+  'tests/gaps.spec.ts', 'tests/panel-interactions.spec.tsx',
   'tests/integration/real-project.mts',
   'docs/testing.md', 'docs/plugin-testing.md',
   'tests/e2e/smoke.mts', 'tests/e2e/fixture/.codebuddy/rules/resident.mdc',
+  'tests/bench/bench.mts', 'tests/e2e/live-model.mts',
+  'tests/snapshot/session.snapshot.mts', 'tests/snapshot/session.snapshot.json',
+  'tests/browser/panel.browser.mts', 'tests/browser/harness.html', 'tests/browser/panel.snapshot.html',
   'tests/e2e/fixture/.codebuddy/rules/ondemand.mdc', 'tests/e2e/fixture/src/app.ts',
 ]
 const missing = REQUIRED.filter((f) => !fs.existsSync(path.join(ROOT, f)))
 check(`${REQUIRED.length} 个必需文件齐全`, missing.length === 0, missing.join(', '))
 
 console.log('\n════ 2. 构建产物 ════')
-for (const [f, min] of [['lib/index.js', 20000], ['lib/client.js', 3000], ['lib/index.d.ts', 300]]) {
+// Typed as tuples: the loop body does arithmetic on the size bound, and an
+// untyped array literal would widen it to string | number.
+const ARTIFACTS: readonly (readonly [string, number])[] = [
+  ['lib/index.js', 20000], ['lib/client.js', 3000], ['lib/index.d.ts', 300],
+]
+for (const [f, min] of ARTIFACTS) {
   const p = path.join(ROOT, f)
   const ok = fs.existsSync(p) && fs.statSync(p).size >= min
   check(`${f} 存在且 ≥${min}B`, ok, fs.existsSync(p) ? fs.statSync(p).size + 'B' : '缺失')
@@ -62,6 +71,11 @@ check('icon 字段存在且文件存在', pj.icon && fs.existsSync(path.join(ROO
 check('keywords 含 dsh-plugin', pj.keywords.includes('dsh-plugin'))
 check('engines.dsh 已声明', typeof pj.engines?.dsh === 'string')
 check('scripts 含 test:e2e', typeof pj.scripts?.['test:e2e'] === 'string')
+check('scripts 含 test:bench', typeof pj.scripts?.['test:bench'] === 'string')
+check('scripts 含 test:e2e:live', typeof pj.scripts?.['test:e2e:live'] === 'string')
+check('scripts 含 test:snapshot', typeof pj.scripts?.['test:snapshot'] === 'string')
+check('scripts 含 test:browser', typeof pj.scripts?.['test:browser'] === 'string')
+check('scripts 含 test:coverage', typeof pj.scripts?.['test:coverage'] === 'string')
 check('engines.node 已声明', typeof pj.engines?.node === 'string')
 check('picomatch 在 dependencies（不依赖宿主）', pj.dependencies?.picomatch !== undefined)
 check('客户端 peer 标 optional', pj.peerDependenciesMeta?.['@deepseek-ai/dsh-client-ui-slots']?.optional === true)
@@ -93,7 +107,11 @@ console.log('\n════ 5. locale 元数据 ════')
 // empty, that is not a string, or that names a Markdown file which does not
 // exist fails at discovery time rather than in a rendering path.
 const localeMeta = new Map<string, Record<string, unknown>>()
-for (const [f, title] of [['locale/en.json', 'Rules'], ['locale/zh.json', '规则']]) {
+// Same reason as ARTIFACTS: the path is passed to fs, which needs a string.
+const LOCALE_FILES: readonly (readonly [string, string])[] = [
+  ['locale/en.json', 'Rules'], ['locale/zh.json', '规则'],
+]
+for (const [f, title] of LOCALE_FILES) {
   const j = JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'))
   localeMeta.set(f, (j.meta ?? {}) as Record<string, unknown>)
   check(`${f} 含 meta.title = ${title}`, j.meta?.title === title)

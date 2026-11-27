@@ -116,3 +116,38 @@ describe('selfCheck', () => {
     expect(selfCheck([])).toBe(true)
   })
 })
+
+describe('compilePatterns — what it records and what it skips', () => {
+  it('records the trimmed pattern, so a warning can be traced back to the entry', () => {
+    const { matchers, warnings } = compilePatterns(['  src/**/*.ts  '])
+    expect(matchers.map((matcher) => matcher.pattern)).toEqual(['src/**/*.ts'])
+    expect(warnings).toEqual([])
+    expect(matchesAny(matchers, '/p/src/a.ts', '/p')).toBe(true)
+  })
+
+  it('keeps a malformed pattern instead of warning about it, because picomatch does not throw', () => {
+    // Measured against picomatch 4.0.7: the shapes below compile into a
+    // matcher that never matches, so `compilePatterns` has nothing to catch
+    // and issues no warning. The glob syntax the package accepts is documented
+    // at https://github.com/micromatch/picomatch#globbing-features. This case
+    // pins the measurement: if an upgrade makes one of them throw, the warning
+    // path starts being used and this assertion is where that shows up.
+    const { matchers, warnings } = compilePatterns(['BAD[[[pattern', '[[[', 'a{b', '\\'])
+    expect(matchers).toHaveLength(4)
+    expect(warnings).toEqual([])
+    for (const matcher of matchers) expect(matcher.match('src/a.ts')).toBe(false)
+  })
+})
+
+describe('compilePatterns — a base spelled with a trailing separator', () => {
+  it('treats the base directory itself as outside the base', () => {
+    // `relativize` strips trailing separators from the base but not from the
+    // path, so a path written as the base plus its separator slices down to the
+    // empty string. An empty relative path is not a file under the base, so the
+    // match has to be refused instead of being handed to picomatch.
+    const { matchers } = compilePatterns(['**/*.ts'])
+    expect(matchesAny(matchers, '/p/', '/p')).toBe(false)
+    expect(matchesAny(matchers, '/p/src/a.ts', '/p')).toBe(true)
+  })
+})
+

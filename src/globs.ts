@@ -50,7 +50,7 @@ export interface CompileResult {
  * `a{b`, a lone backslash) **does not throw** — it compiles to a matcher that
  * always returns false. So a rule keeps its other patterns and simply never
  * matches through the broken one, which is the same outcome with no work. The
- * `try`/`catch` below is defensive only and did not fire in any measured case.
+ * call below is therefore left unguarded: a `catch` here would be unreachable code pretending to be a safety net, and a future picomatch that does throw is a bug worth seeing rather than a warning to record.
  */
 export function compilePatterns(patterns: readonly string[]): CompileResult {
   const matchers: CompiledPattern[] = []
@@ -63,15 +63,11 @@ export function compilePatterns(patterns: readonly string[]): CompileResult {
       warnings.push(`跳过有回溯风险的 glob：${trimmed}`)
       continue
     }
-    try {
-      // `dot` matches inside dotfiles. There is no `posixSlashes` option in
-      // picomatch (that is a micromatch option); Windows separators are
-      // normalized to `/` by `relativize` below before matching.
-      const match = picomatch(trimmed, { dot: true })
-      matchers.push({ pattern: trimmed, match: (path: string) => match(path) })
-    } catch {
-      warnings.push(`跳过无法编译的 glob：${trimmed}`)
-    }
+    // `dot` matches inside dotfiles. There is no `posixSlashes` option in
+    // picomatch (that is a micromatch option); Windows separators are
+    // normalized to `/` by `relativize` below before matching.
+    const match = picomatch(trimmed, { dot: true })
+    matchers.push({ pattern: trimmed, match: (path: string) => match(path) })
   }
   return { matchers, warnings }
 }

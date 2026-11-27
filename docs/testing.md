@@ -42,13 +42,18 @@
 
 ## 本插件的测试地图
 
-三层，命令全部来自 package.json 的 scripts 与 vitest.config.ts 的 include。
+八层，命令全部来自 package.json 的 scripts；单元层的 include 与覆盖率阈值来自 vitest.config.ts。
 
 | 层 | 命令 | 需要 API key | 覆盖的测试 | 断言什么 |
 | --- | --- | --- | --- | --- |
 | 单元 | `npm test`（vitest run） | 否 | tests 下 22 个 `*.spec.ts` / `*.spec.tsx`（include 为 `tests/**/*.spec.{ts,tsx}`） | 纯逻辑用真实输入：parse/classify/globs/budget/render/token-count 走纯函数断言；scan/state/config/attach 用 `mkdtemp` 真实临时夹具跑真 `scanAll` 与真读写；entry/client 用手搭 fake ctx 断言注册与注入决策；panel-ui 用 `renderToStaticMarkup` 断言真实标记 |
+| 覆盖率门禁 | `npm run test:coverage`（vitest run --coverage） | 否 | vitest.config.ts 的 per-file 100% 门槛 | 官方第 2 层的落点：未覆盖的行往往就是该死代码；`src/types.ts` 只含类型与模块声明、运行时零字节，显式排除在外；阈值写在 vitest.config.ts，被它挡住的文件不通过就算失败 |
 | 真实项目集成 | `npm run test:integration`（node --experimental-strip-types tests/integration/real-project.mts） | 否 | tests/integration/real-project.mts | 需要一个含真实规则文件的项目（DSH_RULES_PROJECT）；未设置时打印跳过并 exit 0，克隆下来默认是绿的。断言：项目根识别、扫描计数（14 条 / always=1 / requested=7 / manual=6）、`<rules>` 包裹与分区、requested 正文不进块、manual 完全不出现、token 预算，以及 `read_rules` 完整往返（绝对路径 / 文件名 / 规则名 / 不存在 / 批量五路，批量输出含 7 个 `<rule>` 块） |
 | 真机冒烟 | `npm run test:e2e`（node --experimental-strip-types tests/e2e/smoke.mts） | 否（零凭据：本机 OpenAI 兼容 stub 顶替模型） | tests/e2e/smoke.mts 与 tests/e2e/fixture/ | 起真实 DSH 无头会话（真实 Loader 组合，在一次性 DSH_HOME 里装入本仓库），断言只读 stub 记录的请求原文：启用时首个请求含 `<rules>` 与常驻正文、按需规则只给目录行、续跑请求复用同一份块；禁用组全程无 `<rules>`；再跑四例对抗输入（不可读目录、灾难性 glob、空项目、20000 字超长规则） |
+| 真机冒烟（带 key 真模型） | `npm run test:e2e:live`（node --experimental-strip-types tests/e2e/live-model.mts） | **是**（未设 `DEEPSEEK_API_KEY` 时打印 SKIPPED 并 exit 0） | tests/e2e/live-model.mts | 一次性 DSH_HOME + 无头 profile + 真实模型跑一句任务，然后**验世界**：解出会话转录 `session.v4.jsonl.zstd`（多帧 zstd），断言里面存在 `data.source.kind === "rules-context"` 的注入消息且正文含夹具标记。读的是落盘的会话记录，不是模型自述 |
+| 录制会话快照 | `npm run test:snapshot` | 否 | tests/snapshot/session.snapshot.mts 与 session.snapshot.json | 用零凭据 stub 路线录一次真机会话，把注入的 rules-context 正文与规范化后的 state.json 存成录制；默认逐字节比对，第一处不同会打印字符偏移与两侧上下文；`DSH_SNAPSHOT_UPDATE=1` 才改写录制 |
+| 真浏览器快照 | `npm run test:browser` | 否（无浏览器时打印 SKIPPED 并 exit 0） | tests/browser/panel.browser.mts 与 panel.snapshot.html | 把真实 lib/client.js（连同 react UMD 与 jsx 运行时模块）伺服给无头 Edge/Chrome，渲染面板并断言零窗口错误、四个插槽注入、层级与停用原因、`attached` 标记、点击开关恰好一条写请求、同一份输入两次渲染逐字节相同，最后与存档快照逐字节比对；`DSH_BROWSER_UPDATE=1` 才改写 |
+| 基准 | `npm run test:bench` | 否 | tests/bench/bench.mts | 对真实模块计时：scanAll（约 400 文件）、renderRulesBlock（约 400 规则）、attachedRules（200×200）、read_rules；取三次中位数与宽松上限比，只作回归护栏，不是性能主张 |
 
 诚实备注：tests/entry.spec.ts 与 tests/client.spec.tsx 用的是手搭 fake ctx（`apply(ctx as never)`），正是官方四条规矩第 2 条判定为「不够」的形态；补位的是「真实项目集成」这层与真机冒烟：前者走真实扫描链路，后者由真实 Loader 启动真实 profile。
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { deriveRule, parseRule, splitFrontmatter } from '../src/parse.ts'
+import type { Diagnostic } from '../src/types.ts'
 
 const CTX = { path: '/p/.codebuddy/rules/x.mdc', family: 'codebuddy' as const, scope: 'project' as const, sourceKey: 'codebuddy' }
 
@@ -262,3 +263,97 @@ describe('deriveRule — the three-state formula', () => {
     expect(rule.bodyTokens).toBe(2)
   })
 })
+
+describe('splitFrontmatter — values the parser must read literally', () => {
+  it('reads a list key that carries no inline value', () => {
+    // `globs:` with nothing after the colon is a declared empty list, so the
+    // key still has to be read even though the value group is missing.
+    const fm = splitFrontmatter('---\nglobs:\ndescription: d\n---\nb\n')
+    expect(fm.values['globs']).toEqual([])
+    expect(fm.values['description']).toBe('d')
+    expect(fm.diagnostics.some((d) => d.code === 'fm.emptyList' && d.detail.includes('globs'))).toBe(true)
+  })
+
+  it('keeps a hash inside a quoted value', () => {
+    // A closed-vocabulary field takes the YAML comment rule, and a `#` inside
+    // quotes is data rather than the start of a comment, so both quote styles
+    // have to be recognised before the value is cut.
+    const fm = splitFrontmatter("---\ntype: 'manual # not a comment'\n---\nb\n")
+    expect(fm.values['type']).toBe('manual # not a comment')
+  })
+
+  it('ends a block list at the first line that is not an item', () => {
+    // The line after the items is another key, not a list entry: the loop has
+    // to stop there, keep the items it already read, and let the key be parsed
+    // on the next turn of the outer loop.
+    const fm = splitFrontmatter('---\npaths:\n  - src/**\n  - lib/*.ts\ndescription: after the list\n---\nb\n')
+    expect(fm.values['paths']).toEqual(['src/**', 'lib/*.ts'])
+    expect(fm.values['description']).toBe('after the list')
+    expect(fm.diagnostics.some((d) => d.code === 'fm.malformed')).toBe(false)
+  })
+})
+
+describe('deriveRule — the declarations that fall through', () => {
+  it('reports an unknown trigger and still derives a state from the file', () => {
+    // A non-strict source never rejects on `trigger`: the file is a rule, the
+    // unknown value is reported, and the older rungs decide the state.
+    const diagnostics: Diagnostic[] = []
+    const rule = deriveRule({
+      path: '/p/.codebuddy/rules/x.mdc', family: 'codebuddy', sourceKey: 'codebuddy', scope: 'project',
+      values: { trigger: 'whenever', alwaysApply: 'true' }, body: 'b', diagnostics,
+    })
+    expect(rule.type).toBe('always')
+    expect(diagnostics.some((d) => d.code === 'trigger.unknown' && d.detail.includes('whenever'))).toBe(true)
+  })
+
+  it('takes the declared name instead of the file name', () => {
+    const rule = deriveRule({
+      path: '/p/.codebuddy/rules/x.mdc', family: 'codebuddy', sourceKey: 'codebuddy', scope: 'project',
+      values: { name: 'shell-habits', description: 'd' }, body: 'b', diagnostics: [],
+    })
+    expect(rule.name).toBe('shell-habits')
+  })
+
+  it('reports a strict source that reaches parsing without a trigger', () => {
+    // `scanAll` rejects this file before parsing, but `deriveRule` is exported
+    // and the guard is what keeps a direct caller from deriving a state that
+    // the strict source would never have accepted.
+    const diagnostics: Diagnostic[] = []
+    const rule = deriveRule({
+      path: '/p/.agents/rules/x.md', family: 'agents', sourceKey: 'agents', scope: 'project', strict: true,
+      values: { description: 'd' }, body: 'b', diagnostics,
+    })
+    expect(rule.type).toBe('requested')
+    expect(diagnostics.some((d) => d.code === 'trigger.missing')).toBe(true)
+  })
+})
+
+describe('deriveRule — a list field that arrives as a scalar', () => {
+  it('wraps a scalar list field into a one-element pattern list', () => {
+    // The frontmatter reader always hands a list key to the derivation as an
+    // array, so a bare string can only come from a caller that builds `values`
+    // itself. It has to be read as one pattern rather than ignored, because a
+    // rule whose only declaration is `paths` is still a requested rule.
+    const rule = deriveRule({
+      path: '/p/.codebuddy/rules/x.mdc', family: 'codebuddy', sourceKey: 'codebuddy', scope: 'project',
+      values: { paths: 'src/**/*.ts' }, body: 'b', diagnostics: [],
+    })
+    expect(rule.patterns).toEqual(['src/**/*.ts'])
+    expect(rule.type).toBe('requested')
+  })
+})
+
+describe('deriveRule — an empty list field', () => {
+  it('treats an empty scalar list field as no pattern at all', () => {
+    // The empty string is the second shape `asArray` has to read: a declared
+    // but empty list contributes nothing, so the state has to come from the
+    // other declarations in the file.
+    const rule = deriveRule({
+      path: '/p/.codebuddy/rules/x.mdc', family: 'codebuddy', sourceKey: 'codebuddy', scope: 'project',
+      values: { paths: '', description: 'd' }, body: 'b', diagnostics: [],
+    })
+    expect(rule.patterns).toEqual([])
+    expect(rule.type).toBe('requested')
+  })
+})
+

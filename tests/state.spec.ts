@@ -1,5 +1,5 @@
 import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
@@ -240,3 +240,52 @@ describe('scoped switch helpers', () => {
     expect(disabledPaths(defaultState(), 'codebuddy', 'user')).toEqual([])
   })
 })
+
+describe('the state location itself', () => {
+  beforeEach(() => {
+    // An earlier case in this file pins a directory of its own; clear the
+    // override so the rung under test is the environment variable.
+    setStateDir('')
+  })
+
+  afterEach(() => {
+    setStateDir('')
+  })
+
+  it('reads the environment variable when nothing pinned a directory', () => {
+    // `setStateDir` was not called in this case, so the middle rung of the
+    // chain is the one that answers; a deployment that relocates state sets
+    // exactly this variable (see the precedence note in src/state.ts).
+    const configured = process.env['DSH_RULES_MANAGER_HOME']
+    expect(statePath()).toBe(join(String(configured), 'state.json'))
+  })
+
+  it('falls back to the home directory when the variable is not set either', async () => {
+    // Neither rung above is configured; the state lives under the user's home.
+    delete process.env['DSH_RULES_MANAGER_HOME']
+    expect(statePath()).toBe(join(homedir(), '.dsh', 'rules-manager', 'state.json'))
+  })
+
+  it('reads a file that names no entry location as both entries', async () => {
+    // A file without the field — an older build's, or one written by hand —
+    // must read back as the default rather than as an unknown location.
+    await writeFile(
+      statePath(),
+      JSON.stringify({ version: 1, sources: {}, disabled: {} }),
+      'utf8',
+    )
+    const state = await readState()
+    expect(state.entryLocation).toBe('both')
+  })
+
+  it('refuses to write when the target path cannot be inspected at all', async () => {
+    // A path the filesystem rejects outright: lstat raises ERR_INVALID_ARG_VALUE
+    // (measured on this host) rather than ENOENT, so the guard must rethrow
+    // instead of treating the path as "no file yet".
+    setStateDir('a\u0000b')
+    const error = await writeState(defaultState()).then(() => null, (reason: unknown) => reason as NodeJS.ErrnoException)
+    expect(error?.code).toBe('ERR_INVALID_ARG_VALUE')
+    expect(String(error?.message)).toContain('null bytes')
+  })
+})
+

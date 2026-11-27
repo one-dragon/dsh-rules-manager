@@ -146,10 +146,12 @@ export function createReadRulesTool(
       render: (_args, value) => [{ type: 'text', text: String((value as ReadRulesValue).content) }],
     },
     async execute(args, exec) {
-      const parsed = args as { ruleNames?: readonly unknown[] }
-      const requested = Array.isArray(parsed.ruleNames)
-        ? parsed.ruleNames.filter((name): name is string => typeof name === 'string')
-        : []
+      // `defineTool` validates the parameter schema before `execute` runs
+      // (dsh-tools `lib/index.js`), so `ruleNames` is always an array here and
+      // a guard for the other shape would be an unreachable arm. The filter is
+      // not decorative: a model can put a number or a null inside that array.
+      const { ruleNames } = args as { ruleNames: readonly unknown[] }
+      const requested = ruleNames.filter((name): name is string => typeof name === 'string')
       const resolution = resolveRequested(indexFor(exec.agent), requested)
       const content = formatResolved(resolution, outputMax)
       const value: ReadRulesValue = {

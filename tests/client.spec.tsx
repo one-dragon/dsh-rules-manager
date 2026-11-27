@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apply, fetchRules, filterRules, inject, isForcedRead, postAction, register, residentTokens, resolveText, withRefresh, withWorkspace, TEXT } from '../src/client/index.tsx'
 import { RULES_ROUTE, resolveUrl, type RuleRow } from '../src/panel.ts'
 
@@ -394,3 +394,27 @@ describe('locale resolution', () => {
     expect(resolveText(ctx as never, 'title')).toBe(TEXT.zh['title'])
   })
 })
+
+describe('route resolution against the document it runs in', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('resolves an absolute route against document.baseURI when no base is given', () => {
+    // The parameter exists so the rule can be tested without a DOM; this case
+    // is the other half: the panel calls `resolveUrl(path)` with no base at
+    // all, so the answer has to come from the document it runs in. The
+    // stand-in document is the same shape tests/styles.spec.ts uses.
+    vi.stubGlobal('document', { baseURI: 'http://127.0.0.1:60655/gui/' })
+    expect(resolveUrl(RULES_ROUTE)).toBe('http://127.0.0.1:60655/gui' + RULES_ROUTE)
+  })
+
+  it('keeps a mount point whose last segment is not a file name', () => {
+    // A GUI served under `/gui` has no dot in its last segment, and the route
+    // must land under `/gui/` rather than replacing that segment.
+    expect(resolveUrl('/api/rules-manager/rules.json', 'http://127.0.0.1:60655/gui'))
+      .toBe('http://127.0.0.1:60655/gui/api/rules-manager/rules.json')
+    expect(resolveUrl('/api/x', 'file:///C:/app/gui')).toBe('file:///C:/app/gui/api/x')
+  })
+})
+

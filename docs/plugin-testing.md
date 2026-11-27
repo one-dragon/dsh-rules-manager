@@ -114,21 +114,23 @@
 
 | 层 | 本仓库 | 状态 |
 | --- | --- | --- |
-| 单元 | 22 个 spec 文件 / 767 个用例，skip 与 only 与 todo 命中 0 | 已就位 |
-| 覆盖率门禁 | vitest 配置只有 include；devDependencies 里没有任何覆盖率包 | **未就位** |
+| 单元 | 25 个 spec 文件 / 873 个用例（面板交互单独一个文件 60 例），skip 与 only 与 todo 命中 0 | 已就位 |
+| 覆盖率门禁 | npm run test:coverage：语句、行、函数按**每文件 100%** 强制（vitest.config.ts 的 thresholds.perFile）；`src/types.ts` 排除，因为它只声明类型与模块增强、运行时零字节。残留分支报告为 100/97.77，逐条定性见下 | 已就位 |
 | 真实项目集成 | npm run test:integration（真实项目 + 真实规则文件，无 key，未设置 DSH_RULES_PROJECT 时自跳过） | 已就位 |
-| 真机冒烟（零凭据） | npm run test:e2e：真 Loader 装配 + 本地 OpenAI 兼容 stub，断言只读 stub 记录的请求原文 | 已就位 |
-| 真机冒烟（带 key 真模型） | 未跑 | **缺口，且是唯一需要凭据的一层** |
+| 真机冒烟（零凭据） | npm run test:e2e：真 Loader 装配 + 本地 OpenAI 兼容 stub，断言只读 stub 记录的请求原文 | 已就位（23/23） |
+| 真机冒烟（带 key 真模型） | npm run test:e2e:live 已落盘并自跳过；本机没有 DEEPSEEK_API_KEY，因此这一层还没真跑过 | 已就位，未跑 |
+| 录制会话快照 | npm run test:snapshot：录一次真机会话，比对注入正文与规范化 state.json；改一个字符即 exit 1 | 已就位（18/18） |
+| 真浏览器快照 | npm run test:browser：无头 Edge 伺服真实 lib/client.js 渲染面板，逐字节比对存档快照 | 已就位（25/25） |
+| 基准 | npm run test:bench：scanAll / renderRulesBlock / attachedRules / read_rules 三次取中位数 | 已就位（8/8） |
 | 真实组合（非单测） | tests/e2e 起真实无头会话；tests/entry.spec.ts 与 tests/client.spec.tsx 是手搭 fake ctx | 已就位（fake ctx 那部分官方判为不够，由 e2e 与集成层补位） |
 | 发布产物路径 | 真 Loader 装配成立；构建产物做了静态校验，但未在 plain node 下跑 lib/index.js | 半就位 |
-| 录制会话快照 / 浏览器快照 / 基准 | 无 | 未就位（面板只有 renderToStaticMarkup 与 104 个面板用例） |
 
-差距按性价比排序：
+剩下的差距：
 
-1. **加覆盖率门禁。** 官方明说未覆盖的行往往是该死代码 —— 这一步同时回答本仓库那批「被算出、却没人读」的字段该不该删。
-2. **给新护栏补「能红」记录。** 本轮 e2e 与触碰清空用例都做过故意变异验证，把它固化成可复核的记录。
-3. **带 key 的真模型 smoke。** 脚本先写成无 key 自跳过，等有 key 时即可运行。
-4. **面板真浏览器快照。** 把 UI 判决交给浏览器。
+1. **带 key 的真模型 smoke 还没真跑。** 脚本已落盘（无 key 自跳过），本机缺 `DEEPSEEK_API_KEY`。
+2. **发布产物路径是半就位。** 真 Loader 能装配它，但没有在 plain node 下跑过构建后的 `lib/index.js`，而官方第 41 行要求真入口路径跑发布产物。
+3. **分支未达 100% 的 22 处已逐条定性，结论是「不可达」而不是「还缺用例」。** 三类：需要打桩才能触发的库内异常（picomatch 的编译抛错、matcher 抛错）；构造上不可能取到 undefined 的兜底（`lines[i] ?? ''` 这类下标恒在界内的 `??`）；以及公开面走不到的守卫（重复根去重、`Array.isArray` 参数守卫）。其中两处纯防御臂已按覆盖率证据删除：`src/globs.ts` 里实测从不触发的 `catch`，与 `src/tool-read-rules.ts` 里被 `defineTool` 参数校验挡在门外的非数组分支。
+4. **故意「注入回归看红」的记录只散在测试脚本里。** e2e、snapshot、browser 三层各自做过一次并已还原，尚未固化成一条可复核的清单。
 
 ## 六、证据与复现
 

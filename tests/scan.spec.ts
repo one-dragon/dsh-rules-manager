@@ -1,5 +1,5 @@
 import { promises as fsPromises } from 'node:fs'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -182,6 +182,13 @@ describe('displayPath', () => {
 
   it('returns the absolute path when there is no project root', () => {
     expect(displayPath('/p/a.mdc', null)).toBe('/p/a.mdc')
+  })
+
+  it('keeps the absolute path when the relative one would climb out of the project', () => {
+    // A sibling of the project root is not inside it: `relative` answers with a
+    // `..` path, which no panel route can open, so the absolute path is kept.
+    const sibling = join(root, '..', 'sibling', 'a.mdc')
+    expect(displayPath(sibling, root)).toBe(sibling)
   })
 })
 
@@ -577,3 +584,95 @@ describe('the failures the walk reports', () => {
     }
   })
 })
+
+describe('the roots the scan collects, and the files it collects them from', () => {
+  it('reads a declared single file whose name carries no extension', async () => {
+    // Roo Code's `.roorules` is a declared file root with no dot in its name,
+    // so the extension taken from `lastIndexOf('.')` is empty rather than a
+    // suffix. The extension list never rejects such a root, or the alias would
+    // exist in the table and still never be read.
+    await writeFile(join(root, '.roorules'), fenced(), 'utf8')
+    const result = await scanAll(root)
+    const single = result.rules.find((r) => r.path === join(root, '.roorules'))
+    expect(single).toBeDefined()
+    expect(single?.type).toBe('always')
+    expect(result.rules.filter((r) => r.path === join(root, '.roorules'))).toHaveLength(1)
+  })
+
+  it('skips a file with no extension instead of guessing one', async () => {
+    // A walked directory can hold a file whose name has no dot at all: the
+    // extension taken from `lastIndexOf('.')` is empty there, and the filter
+    // has to read that as "not a rule file" rather than read it anyway.
+    const bare = join(root, '.codebuddy', 'rules', 'notes')
+    await writeFile(bare, fenced('description: extensionless note'), 'utf8')
+    const result = await scanAll(root)
+    expect(result.rules.some((rule) => rule.path === bare)).toBe(false)
+    expect(result.diagnostics.filter((d) => d.path === bare)).toEqual([])
+    expect(result.truncated).toBe(false)
+  })
+
+  it('stamps the file path on a frontmatter finding the parser alone cannot place', async () => {
+    // The parser knows the frontmatter line a finding came from but not the
+    // file; the walk-level list is what a cost dialog itemises, so the path is
+    // added there, and only where it is missing.
+    const gapped = join(root, '.codebuddy', 'rules', 'gapped.mdc')
+    await writeFile(gapped, fenced('description: has an empty list', 'globs:'), 'utf8')
+    const result = await scanAll(root)
+    const found = result.rules.find((rule) => rule.path === gapped)
+    expect(found?.diagnostics.some((d) => d.code === 'fm.emptyList')).toBe(true)
+    expect(found?.diagnostics.find((d) => d.code === 'fm.emptyList')?.path).toBeUndefined()
+    const walked = result.diagnostics.find((d) => d.code === 'fm.emptyList' && d.detail.includes('globs'))
+    expect(walked?.path).toBe(gapped)
+  })
+
+  it('drops a symbolic link instead of reading its target through a rule name', async () => {
+    // A link is neither a directory nor a file as `readdir` reports it
+    // (measured with withFileTypes on this host), so the walk must skip it
+    // rather than follow it: the target's own path is the rule's identity, and
+    // a second name for it would list one file twice.
+    const dir = await mkdtemp(join(tmpdir(), 'dshrm-link-'))
+    try {
+      await mkdir(join(dir, '.git'), { recursive: true })
+      await mkdir(join(dir, '.codebuddy', 'rules'), { recursive: true })
+      const target = join(dir, 'outside.md')
+      await writeFile(target, fenced('description: linked target'), 'utf8')
+      const alias = join(dir, '.codebuddy', 'rules', 'alias.mdc')
+      await symlink(target, alias, 'file')
+
+      const result = await scanAll(dir)
+      expect(result.rules.some((rule) => rule.path === alias)).toBe(false)
+      expect(result.rules.some((rule) => rule.path === target)).toBe(false)
+      expect(result.diagnostics.filter((d) => d.path === alias)).toEqual([])
+      expect(result.truncated).toBe(false)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('names the missing trigger on a strict source instead of a generic skip', async () => {
+    // The skip reason is the only thing telling "a plain note was ignored"
+    // apart from "this convention demands a trigger", and it is read here
+    // through the same environment-resolved user tier the scan reads.
+    const dir = await mkdtemp(join(tmpdir(), 'dshrm-reason-'))
+    try {
+      const env = { DSH_AGENTS_HOME: join(dir, 'agents-home'), KIRO_HOME: join(dir, 'kiro-home') }
+      const strictDir = join(agentsHome(env), 'rules')
+      const looseDir = join(kiroHome(env), 'steering')
+      await mkdir(strictDir, { recursive: true })
+      await mkdir(looseDir, { recursive: true })
+      const note = join(strictDir, 'note.md')
+      await writeFile(note, fenced('description: plain note'), 'utf8')
+      const steering = join(looseDir, 'steer.md')
+      await writeFile(steering, fenced('name: steering', 'description: kiro file'), 'utf8')
+
+      const result = await scanAll(dir, {}, env)
+      const skipped = result.diagnostics.find((d) => d.code === 'classify.skipped' && d.path === note)
+      expect(skipped?.detail).toContain('trigger')
+      expect(result.rules.some((rule) => rule.path === note)).toBe(false)
+      expect(result.rules.some((rule) => rule.path === steering)).toBe(true)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+

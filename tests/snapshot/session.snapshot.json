@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "runner": "tests/snapshot/session.snapshot.mts",
+  "purpose": [
+    "官方测试政策第 6 层的插件级对应物：父代提供输入与模型回放，子代是期望的持久结果。",
+    "父代（输入）：本地 OpenAI 兼容 stub 的固定回放，加上一次真机 DSH 无头会话里插件注入进模型上下文的 <rules> 块。",
+    "子代（持久结果）：一次性 DSH_HOME 里那次会话留下的会话持久化文件，本文件记录从它重新读回的 rules-context 正文。",
+    "两侧正文都记在 session 里：modelVisibleRulesText 是模型实际收到的，injectedRulesText 是会话落盘的；两者必须逐字一致。",
+    "插件状态文件 state.json 由管理面板写入，无头会话不改写状态，故如实记为 null —— 这条 null 本身就是「无头会话不写状态」的断言。",
+    "录制里不含任何本机路径：临时项目目录、一次性 DSH_HOME 与临时根目录的前缀已替换为占位。"
+  ],
+  "refresh": "DSH_SNAPSHOT_UPDATE=1 node --experimental-strip-types tests/snapshot/session.snapshot.mts",
+  "placeholders": {
+    "project": "<PROJECT>",
+    "dshHome": "<DSH_HOME>",
+    "tempRoot": "<TEMP_ROOT>"
+  },
+  "session": {
+    "persistedFiles": 1,
+    "rulesContextMessages": 1,
+    "rulesContextForm": "instructions",
+    "rulesContextLine": 11,
+    "modelVisibleRulesText": "<rules>\nThe rules section has a number of possible rules/context that you should consider. In each subsection, we provide instructions about what information the subsection contains and how you should consider/follow the contents of the subsection. Explicit user rules take precedence over default tool preferences described in tool descriptions.\n<always_applied_workspace_rules description=\"These are rules set by the project that you should follow if appropriate.\">\n\nRESIDENT_MARKER_ALPHA: 这条规则 alwaysApply 为真，正文必须整段进入注入块。\n它用来证明常驻规则的正文确实到达了模型可见的请求里。\n\n\n</always_applied_workspace_rules>\n<agent_requestable_workspace_rules description=\"These are workspace-level rules that the agent should follow. They can request the full details of the rule with the read_rules tool.\">\n\nUse read rule tool to fetch the rule content if needed. In <agent_requestable_workspace_rules> section, key is the rule's absolute file path, value is rule's description.\n- <PROJECT>\\.codebuddy\\rules\\ondemand.mdc: ONDEMAND_DESCRIPTION_MARKER 按需夹具规则，只有描述常驻\n\n</agent_requestable_workspace_rules>\n</rules>",
+    "injectedRulesText": "<rules>\nThe rules section has a number of possible rules/context that you should consider. In each subsection, we provide instructions about what information the subsection contains and how you should consider/follow the contents of the subsection. Explicit user rules take precedence over default tool preferences described in tool descriptions.\n<always_applied_workspace_rules description=\"These are rules set by the project that you should follow if appropriate.\">\n\nRESIDENT_MARKER_ALPHA: 这条规则 alwaysApply 为真，正文必须整段进入注入块。\n它用来证明常驻规则的正文确实到达了模型可见的请求里。\n\n\n</always_applied_workspace_rules>\n<agent_requestable_workspace_rules description=\"These are workspace-level rules that the agent should follow. They can request the full details of the rule with the read_rules tool.\">\n\nUse read rule tool to fetch the rule content if needed. In <agent_requestable_workspace_rules> section, key is the rule's absolute file path, value is rule's description.\n- <PROJECT>\\.codebuddy\\rules\\ondemand.mdc: ONDEMAND_DESCRIPTION_MARKER 按需夹具规则，只有描述常驻\n\n</agent_requestable_workspace_rules>\n</rules>"
+  },
+  "pluginState": null
+}
