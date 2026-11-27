@@ -32,6 +32,15 @@ export const PANEL_CSS = `
 .dshrm-btn{flex:none;padding:5px 12px;font-size:12px;cursor:pointer;border-radius:var(--dsw-radius-sm,8px);border:0.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.3));background:transparent;color:var(--dsw-alias-label-primary,inherit)}
 .dshrm-btn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.08))}
 .dshrm-btn:disabled{opacity:.6;cursor:progress}
+/* ---- entry location ---- */
+/* Three pressed-state buttons, not a tablist: this picks a setting rather than a
+   view, and the panel already has two visually similar tablists. Same shape as
+   .dshrm-btn so the header reads as one row of controls. */
+.dshrm-entry{display:flex;gap:2px;padding:2px;border:0.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.3));border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.08))}
+.dshrm-entry-btn{flex:none;padding:4px 10px;font-size:12px;line-height:18px;cursor:pointer;background:transparent;border:0;border-radius:var(--dsw-radius-xs,4px);color:var(--dsw-alias-label-secondary,#b9b9b9);white-space:nowrap}
+.dshrm-entry-btn:hover{color:var(--dsw-alias-label-primary,inherit)}
+.dshrm-entry-btn.on{background:var(--dsw-alias-bg-layer-1,rgba(127,127,127,.16));color:var(--dsw-alias-brand-primary,#4d6bfe);font-weight:600}
+.dshrm-entry-btn:disabled{opacity:.6;cursor:progress}
 /* ---- stat bar ---- */
 .dshrm-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:hidden;border:0.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.3));border-radius:var(--dsw-radius-lg,16px);background:var(--dsw-alias-bg-layer-1,transparent)}
 .dshrm-stat{min-width:0;display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:0;font:inherit;text-align:left;background:transparent;color:inherit}

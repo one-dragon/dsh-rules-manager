@@ -23,6 +23,22 @@ import type { Diagnostic } from './types.ts'
 export const RULES_ROUTE = '/api/rules-manager/rules.json'
 
 /**
+ * Where the host publishes which slots the entry should live in.
+ *
+ * A second route rather than a field on {@link RULES_ROUTE}, because the two are
+ * read at different moments for different reasons: the panel needs the location
+ * before it decides which slots to keep, while the catalog arrives whenever the
+ * host has a workspace. Folding the location into the catalog would mean
+ * registering a settings section before the answer that says the user asked for
+ * the sidebar instead.
+ *
+ * Same `/api/` contract and the same register-at-the-Connection fence as the
+ * route above. Only `GET` is served: a change to the location travels as a
+ * normal action to {@link RULES_ROUTE}, so one route stays the single write path.
+ */
+export const ENTRY_ROUTE = '/api/rules-manager/entry.json'
+
+/**
  * Resolve a plugin route against the document base.
  *
  * A bare \`fetch('/api/...')\` resolves against the *origin* root, which drops
@@ -233,6 +249,34 @@ export interface RulesPayload {
    * identical to a user staring at an empty list.
    */
   readonly workspace: RuleWorkspaceInfo
+  /**
+   * Where the user asked the entry to appear.
+   *
+   * The panel registers into every slot and then retires the ones this value
+   * excludes, so a host built before the field sends none and reads as `both` —
+   * the layout every earlier build already had.
+   */
+  readonly entryLocation: RulesEntryLocation
+}
+
+/**
+ * The three layouts the entry can take.
+ *
+ * `both` is the default and the fallback: a state file written before the
+ * setting existed, or a host that cannot answer the entry route, keeps the
+ * layout it always had rather than silently losing one of its two doors.
+ */
+export type RulesEntryLocation = 'settings' | 'sidebar' | 'both'
+
+/**
+ * Whether a value is one of the three layouts.
+ *
+ * Shared by both halves on purpose: the host validates what it reads off the
+ * wire and off disk with it, and the browser falls back to `both` for anything
+ * it does not recognize.
+ */
+export function isRulesEntryLocation(value: unknown): value is RulesEntryLocation {
+  return value === 'settings' || value === 'sidebar' || value === 'both'
 }
 
 /**
@@ -301,3 +345,6 @@ export interface RuleWorkspaceInfo {
 export type RulesAction =
   | { readonly action: 'setSource'; readonly key: string; readonly enabled: boolean; readonly scope?: 'user' | 'project' }
   | { readonly action: 'setRule'; readonly key: string; readonly path: string; readonly enabled: boolean; readonly scope?: 'user' | 'project' }
+  // No key and no scope: the location is one setting for the whole panel, not a
+  // per-source switch, so it cannot borrow the guards the other two share.
+  | { readonly action: 'setEntry'; readonly location: RulesEntryLocation }

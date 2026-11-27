@@ -896,6 +896,46 @@ describe('register: slots, icon and labels', () => {
   })
 })
 
+describe('the entry location control', () => {
+  const locationButtons = (element: React.ReactElement): TreeNode[] =>
+    findAll(element, (node) => node.type === 'button' && node.props['aria-pressed'] !== undefined)
+
+  it('sends the location that was pressed and shows which one is live', () => {
+    // A press is the only thing this row does. It reports the value it carries
+    // rather than toggling anything itself: state.json is the host's to write,
+    // and the panel only learns the answer from the write's own response.
+    const pressed: string[] = []
+    const view = renderPanel({
+      entryLocation: 'both',
+      onSetEntryLocation: (next) => { pressed.push(next) },
+    })
+    const buttons = locationButtons(view.element)
+    expect(buttons).toHaveLength(3)
+    expect(buttons.map((button) => button.props['aria-pressed'])).toEqual([false, false, true])
+
+    fireClick(buttons[1] as TreeNode)
+    expect(pressed).toEqual(['sidebar'])
+    // Pressing the live one is still a write: the row has no state of its own
+    // to short-circuit on, so a second press of the same button is harmless.
+    fireClick(buttons[0] as TreeNode)
+    expect(pressed).toEqual(['sidebar', 'settings'])
+  })
+
+  it('disables every button while the write it started is in flight', () => {
+    const view = renderPanel({ entryLocation: 'settings', onSetEntryLocation: NOOP, entryPending: true })
+    const buttons = locationButtons(view.element)
+    expect(buttons.map((button) => button.props['disabled'])).toEqual([true, true, true])
+    expect(buttons.map((button) => button.props['aria-pressed'])).toEqual([true, false, false])
+  })
+
+  it('renders no row at all when the host never wired the handler', () => {
+    // The panel is also opened by hosts that predate this setting; a control
+    // that cannot write anywhere must not be drawn.
+    const view = renderPanel()
+    expect(locationButtons(view.element)).toHaveLength(0)
+  })
+})
+
 describe('useRules: reads, refresh and writes', () => {
   interface Harness {
     readonly hook: () => ReturnType<typeof useRules>
@@ -935,6 +975,7 @@ describe('useRules: reads, refresh and writes', () => {
     diagnostics: [],
     truncated: false,
     workspace: { path: '/p', source: 'last-scan' },
+    entryLocation: 'both',
     ...over,
   })
 
@@ -1047,6 +1088,68 @@ describe('useRules: reads, refresh and writes', () => {
     await settle()
     state.render()
     expect(state.hook().rules[0]?.active).toBe(true)
+    expect(state.hook().error).toContain('500')
+    expect(state.hook().pending).toEqual([])
+    for (const cleanup of cleanups) cleanup()
+  })
+
+  it('moves the entry location and settles on the answer from the host', async () => {
+    // The location row is a setting rather than a view switch: the optimistic
+    // frame moves the pressed button at once, and the host's own answer is what
+    // the panel ends on.
+    vi.stubGlobal('fetch', async (url: string, init?: { method?: string }): Promise<unknown> => {
+      urls.push(String(url))
+      if (init?.method === 'POST') {
+        post = JSON.parse(String((init as { body?: string }).body))
+        return { ok: true, status: 200, json: async () => catalog({ entryLocation: 'sidebar' }) }
+      }
+      return { ok: true, status: 200, json: async () => catalog() }
+    })
+    urls = []
+    let post: unknown = undefined
+    const state = harness()
+    const cleanups = runEffects(state.view.effects)
+    await settle()
+    state.render()
+    expect(state.hook().entryLocation).toBe('both')
+
+    state.hook().setEntryLocation('sidebar')
+    state.render()
+    expect(state.hook().entryLocation).toBe('sidebar')
+    // The in-flight key names the location, so the row can disable itself and
+    // still tell the user which button they pressed.
+    expect(state.hook().pending).toEqual(['entry:sidebar'])
+
+    await settle()
+    state.render()
+    expect(post).toEqual({ action: 'setEntry', location: 'sidebar' })
+    expect(state.hook().entryLocation).toBe('sidebar')
+    expect(state.hook().pending).toEqual([])
+    expect(state.hook().error).toBeNull()
+    for (const cleanup of cleanups) cleanup()
+  })
+
+  it('puts the entry location back when the host refuses the move', async () => {
+    // A panel that keeps the optimistic frame after a refusal lies about what
+    // state.json says, and the next read would appear to contradict the user.
+    vi.stubGlobal('fetch', async (url: string, init?: { method?: string }): Promise<unknown> => {
+      urls.push(String(url))
+      if (init?.method === 'POST') return { ok: false, status: 500, json: async () => ({}) }
+      return { ok: true, status: 200, json: async () => catalog() }
+    })
+    urls = []
+    const state = harness()
+    const cleanups = runEffects(state.view.effects)
+    await settle()
+    state.render()
+
+    state.hook().setEntryLocation('settings')
+    state.render()
+    expect(state.hook().entryLocation).toBe('settings')
+
+    await settle()
+    state.render()
+    expect(state.hook().entryLocation).toBe('both')
     expect(state.hook().error).toContain('500')
     expect(state.hook().pending).toEqual([])
     for (const cleanup of cleanups) cleanup()
@@ -1245,6 +1348,7 @@ describe('defensive reads and pure helpers', () => {
       diagnostics: [],
       truncated: false,
       workspace: { path: '/p', source: 'last-scan' },
+      entryLocation: 'both',
     }
     const next = optimistic(payload, { action: 'setSource', key: 'codebuddy', enabled: true })
     expect(next.sources[0]?.enabled).toBe(true)
@@ -1270,6 +1374,7 @@ describe('defensive reads and pure helpers', () => {
       diagnostics: [],
       truncated: false,
       workspace: { path: '/p', source: 'last-scan' },
+      entryLocation: 'both',
     }
     const next = optimistic(payload, { action: 'setRule', key: 'codebuddy', path: '/p/free.mdc', enabled: true, scope: 'project' })
     expect(next.rules[0]?.active).toBe(false)

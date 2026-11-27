@@ -26,7 +26,7 @@ import { attachedNow, NO_ATTACHED } from './rule-layout.ts'
 import type { Diagnostic, Rule } from './types.ts'
 import './types.ts'   // side effect: declares the 'rules-context' message source
 import type { Config } from './config.ts'
-import { RULES_ROUTE, toPanelDiagnostics, type DiagnosticKind, type RuleDiagnosticRow, type RuleRow, type RuleSourceRow, type RulesAction, type RulesPayload } from './panel.ts'
+import { ENTRY_ROUTE, RULES_ROUTE, isRulesEntryLocation, toPanelDiagnostics, type DiagnosticKind, type RuleDiagnosticRow, type RuleRow, type RuleSourceRow, type RulesAction, type RulesPayload } from './panel.ts'
 
 /** Cordis entry id; matches `cordis.patch.yml` and stays short by convention. */
 export const name = 'rules-manager'
@@ -170,6 +170,13 @@ function parseScope(value: unknown): 'user' | 'project' | undefined {
 function parseAction(value: unknown): RulesAction | null {
   if (typeof value !== 'object' || value === null) return null
   const candidate = value as Record<string, unknown>
+  // Ahead of the guards the other two actions share: this one carries neither
+  // `enabled` nor `key`, so both checks below would reject every valid body
+  // that asks to move the entry.
+  if (candidate['action'] === 'setEntry') {
+    const location = candidate['location']
+    return isRulesEntryLocation(location) ? { action: 'setEntry', location } : null
+  }
   if (typeof candidate['enabled'] !== 'boolean') return null
   if (typeof candidate['key'] !== 'string' || candidate['key'] === '') return null
   if (candidate['action'] === 'setSource') {
@@ -604,6 +611,15 @@ export function apply(ctx: Context, config: Config): void {
         return jsonResponse(await snapshot(undefined, requestedWorkspace, parseRefresh(request.url)))
       },
     }))
+    // A second route, and a small one: the panel has to know which slots to keep
+    // before it can fetch a catalog, and this answer comes from state alone. It
+    // is read-only, and it is registered second so the catalog route stays the
+    // first route a reader of the registration list sees.
+    owner.effect(() => fetch.register({
+      path: ENTRY_ROUTE,
+      methods: ['GET'],
+      fetch: async (): Promise<Response> => jsonResponse({ entryLocation: (await readState()).entryLocation }),
+    }))
   }
 
   /**
@@ -724,6 +740,7 @@ export function apply(ctx: Context, config: Config): void {
         diagnostics: [],
         truncated: false,
         workspace: { path: root, source, options: candidates },
+        entryLocation: state.entryLocation,
       }
     }
     // A browser request carries no agent, so the attachments are the ones the
@@ -754,6 +771,10 @@ export function apply(ctx: Context, config: Config): void {
       diagnostics: toPanelDiagnostics([...entry.diagnostics, ...attachment.diagnostics], root ?? undefined, SCAN_KIND),
       truncated: entry.truncated,
       workspace: { path: root, source, options: candidates },
+      // Published with every answer, the no-workspace one included: the two
+      // must not disagree about where the entry goes, or a panel that fell back
+      // to its own guess would move the entry as soon as a scan succeeded.
+      entryLocation: state.entryLocation,
     }
   }
 
@@ -768,7 +789,13 @@ export function apply(ctx: Context, config: Config): void {
   const applyAction = async (parsed: RulesAction, requested: string | null): Promise<Response> => {
     const state = await readState()
     let updated: ManagerState
-    if (parsed.action === 'setSource') {
+    // The location is one setting for the whole panel, not a per-source switch,
+    // so it is applied ahead of the two branches that address one. Everything
+    // below this point - the cache drops, the rescan, the response - is shared,
+    // and a moved entry needs all of it as much as a flipped switch does.
+    if (parsed.action === 'setEntry') {
+      updated = { ...state, entryLocation: parsed.location }
+    } else if (parsed.action === 'setSource') {
       // A scoped write lands under its scope-qualified key; an unscoped one keeps
       // writing the legacy bare entry, and neither ever removes the other.
       updated = { ...state, sources: { ...state.sources, [scopedKey(parsed.key, parsed.scope)]: parsed.enabled } }

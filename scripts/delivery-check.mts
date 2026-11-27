@@ -485,6 +485,17 @@ console.log('\n════ 6d. 面板数据层契约（task-11 的回归）═�
   }
   check('RuleSourceRow 含 activeRuleCount', /readonly activeRuleCount: number/.test(panel))
   check('RulesPayload 含 sources 段', /readonly sources: readonly RuleSourceRow\[\]/.test(panel))
+  // The entry location is published with every answer and validated on the way
+  // in, because a value no branch matches used to hide the panel entirely.
+  check('RulesPayload 含 entryLocation', /readonly entryLocation: RulesEntryLocation/.test(panel))
+  check('规则入口位置取值有白名单校验', /function isRulesEntryLocation/.test(panel))
+  check('宿主注册了入口路由', /path: ENTRY_ROUTE/.test(fs.readFileSync(path.join(ROOT, 'src/index.ts'), 'utf8')))
+  // The client half is text-checked too: the location only matters if the panel
+  // both reads the route and acts on the answer.
+  const clientSrc = fs.readFileSync(path.join(ROOT, 'src/client/index.tsx'), 'utf8')
+  check('[文本检查] 客户端按入口位置取舍插槽', /ENTRY_HIDES\[location\]/.test(clientSrc))
+  check('[文本检查] 客户端读取入口路由', /resolveUrl\(ENTRY_ROUTE\)/.test(clientSrc))
+  check('[文本检查] 客户端三态控件按 aria-pressed 表达选中', /aria-pressed=\{entryLocation === value\}/.test(clientSrc))
   check('RulesPayload 含 scannedAt', /readonly scannedAt: number/.test(panel))
   // stateDir must stay unpinned by default, or the env override can never work.
   const cfg = fs.readFileSync(path.join(ROOT, 'src/config.ts'), 'utf8')

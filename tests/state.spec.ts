@@ -51,6 +51,26 @@ describe('readState', () => {
     await writeFile(statePath(), '42', 'utf8')
     expect(await readState()).toEqual(defaultState())
   })
+
+  it('accepts only the three locations it knows, and keeps the panel reachable otherwise', async () => {
+    // The file is hand-editable, and the README tells people they may edit it.
+    // A typo in the location used to travel straight to the panel, where no
+    // button matched it; falling back to 'both' keeps every entry reachable so
+    // the mistake can be undone from the panel itself.
+    const { writeFile } = await import('node:fs/promises')
+    for (const known of ['settings', 'sidebar', 'both'] as const) {
+      await writeFile(statePath(), JSON.stringify({ ...defaultState(), entryLocation: known }), 'utf8')
+      expect((await readState()).entryLocation).toBe(known)
+    }
+    for (const wrong of ['everywhere', 'Settings', '', 0, 1, null, true, {}, ['both']]) {
+      await writeFile(statePath(), JSON.stringify({ ...defaultState(), entryLocation: wrong }), 'utf8')
+      expect((await readState()).entryLocation, 'fallback for ' + JSON.stringify(wrong)).toBe('both')
+    }
+    // A missing field is not a wrong one: a state file written before the
+    // location existed still reads, and it reads as the default layout.
+    await writeFile(statePath(), JSON.stringify({ version: 1, sources: {}, disabled: {}, budgets: {} }), 'utf8')
+    expect((await readState()).entryLocation).toBe('both')
+  })
 })
 
 describe('writeState / readState round trip', () => {

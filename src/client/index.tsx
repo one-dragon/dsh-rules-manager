@@ -19,7 +19,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import { installPanelStyles } from './styles.ts'
 import { BRAND_ICONS } from './brand-icons.ts'
-import { RULES_ROUTE, resolveUrl, type RuleDiagnosticRow, type RuleRow, type RuleSourceRow, type RulesAction, type RulesPayload } from '../panel.ts'
+import { ENTRY_ROUTE, RULES_ROUTE, isRulesEntryLocation, resolveUrl, type RuleDiagnosticRow, type RuleRow, type RuleSourceRow, type RulesAction, type RulesEntryLocation, type RulesPayload } from '../panel.ts'
 import {
   costReport, disabledReasonKey, filterByScope, filterRules, format, groupBySource, noteKeyOf, optimistic,
   residentTokens, ruleCost, ruleSourceId, scopeIn, sortByCost, sourceId, sourceKeyOf, statusCounts, statusIn, statusOf,
@@ -36,6 +36,23 @@ export type { RuleRow, RuleSourceRow, RulesAction, RulesPayload }
 const SECTION_ID = 'dsh-rules-manager'
 const PANEL_ID = 'dsh-rules-manager'
 const NS = 'dshRulesManager'
+
+/** Every slot the entry can live in, in registration order. */
+const FOUR_SLOTS: readonly string[] = ['settings.section', 'settings.section.icon', 'sidebar.panellist', 'main']
+
+/** The layouts that exclude one of the two doors. */
+const ENTRY_HIDES: Record<'settings' | 'sidebar', readonly string[]> = {
+  settings: ['sidebar.panellist', 'main'],
+  sidebar: ['settings.section', 'settings.section.icon'],
+}
+
+/** The three layouts the entry can take, in the order the control offers them. */
+const ENTRY_LOCATIONS: readonly RulesEntryLocation[] = ['settings', 'sidebar', 'both']
+
+/** The TEXT key each layout's label lives under. */
+const ENTRY_LABEL: Record<RulesEntryLocation, string> = {
+  settings: 'entry.settings', sidebar: 'entry.sidebar', both: 'entry.both',
+}
 
 /** DOM id of one tab, so a tablist's roving tab stop has a stable target. */
 const tabId = (list: 'scope' | 'status', key: string): string => SECTION_ID + '-' + list + '-tab-' + key
@@ -261,7 +278,7 @@ export function TokenBreakdown({ rules, diagnostics, t, onClose }: {
   )
 }
 
-export function RulesPanel({ ctx, t, rules, sources, workspace, scannedAt = 0, selectedWorkspace = null, onSelectWorkspace, state, onRetry, refreshing = false, onRefresh, onToggleRule, onToggleSource, pending, error, scanDiagnostics = [], truncated = false }: RulesPanelProps & {
+export function RulesPanel({ ctx, t, rules, sources, workspace, scannedAt = 0, selectedWorkspace = null, onSelectWorkspace, state, onRetry, refreshing = false, onRefresh, onToggleRule, onToggleSource, pending, error, scanDiagnostics = [], truncated = false, entryLocation = 'both', onSetEntryLocation, entryPending = false }: RulesPanelProps & {
   rules: readonly RuleRow[]
   sources: readonly RuleSourceRow[]
   workspace: { readonly path: string | null; readonly source: string; readonly options?: readonly string[] }
@@ -294,6 +311,17 @@ export function RulesPanel({ ctx, t, rules, sources, workspace, scannedAt = 0, s
   readonly scanDiagnostics?: readonly RuleDiagnosticRow[]
   /** True when the walk stopped at one of its caps. */
   readonly truncated?: boolean
+  /**
+   * Where the entry appears, and how to move it.
+   *
+   * Both are optional: a render that passes neither - a test, or a host built
+   * before the setting existed - shows no control, rather than one whose click
+   * would go nowhere.
+   */
+  readonly entryLocation?: RulesEntryLocation
+  readonly onSetEntryLocation?: (location: RulesEntryLocation) => void
+  /** True while the move is in flight, so the control cannot be clicked twice. */
+  readonly entryPending?: boolean
 }) {
   const [query, setQuery] = useState('')
   // The project tier, not "all": a host with no user-level sources would
@@ -403,6 +431,27 @@ export function RulesPanel({ ctx, t, rules, sources, workspace, scannedAt = 0, s
         <h1 className="dshrm-title">{t('title')}</h1>
         <p className="dshrm-sub">{t('subtitle')}</p>
         <div className="dshrm-actions">
+          {onSetEntryLocation !== undefined
+            ? (
+              /* A group of pressed-state buttons, not a third tablist: two
+                 tablists already sit close together in this panel, and this is
+                 a setting rather than a view switch. */
+              <div className="dshrm-entry" role="group" aria-label={t('entryLocation')}>
+                {ENTRY_LOCATIONS.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={entryLocation === value ? 'dshrm-entry-btn on' : 'dshrm-entry-btn'}
+                    aria-pressed={entryLocation === value}
+                    disabled={entryPending}
+                    onClick={() => onSetEntryLocation(value)}
+                  >
+                    {t(ENTRY_LABEL[value])}
+                  </button>
+                ))}
+              </div>
+            )
+            : null}
           {/* A refresh that looks like nothing happened is worse than no button.
               The host answers a repeated read from its 30s cache, so the stamp
               below does not move on its own: this one forces a rescan and says
@@ -845,6 +894,9 @@ export async function fetchRules(
     diagnostics: Array.isArray(payload.diagnostics) ? payload.diagnostics : [],
     truncated: payload.truncated === true,
     workspace: payload.workspace ?? { path: null, source: 'none' },
+    // An unrecognized location falls back to the layout every earlier build
+    // had, rather than to one that would hide the entry.
+    entryLocation: isRulesEntryLocation(payload.entryLocation) ? payload.entryLocation : 'both',
   }
 }
 
@@ -874,6 +926,7 @@ export async function postAction(
     diagnostics: Array.isArray(payload.diagnostics) ? payload.diagnostics : [],
     truncated: payload.truncated === true,
     workspace: payload.workspace ?? { path: null, source: 'none' },
+    entryLocation: isRulesEntryLocation(payload.entryLocation) ? payload.entryLocation : 'both',
   }
 }
 
@@ -886,7 +939,7 @@ export async function postAction(
  * state the host did not confirm.
  */
 export function useRules(route: string = RULES_ROUTE) {
-  const [payload, setPayload] = useState<RulesPayload>({ rules: [], sources: [], scannedAt: 0, diagnostics: [], truncated: false, workspace: { path: null, source: 'none' } })
+  const [payload, setPayload] = useState<RulesPayload>({ rules: [], sources: [], scannedAt: 0, diagnostics: [], truncated: false, workspace: { path: null, source: 'none' }, entryLocation: 'both' })
   // Which directory the panel is showing. null is the host's own choice, which
   // is also what a panel that never had a choice keeps sending.
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
@@ -902,7 +955,7 @@ export function useRules(route: string = RULES_ROUTE) {
   const [refreshTick, setRefreshTick] = useState(0)
   const servedRefresh = useRef(0)
 
-  const EMPTY: RulesPayload = { rules: [], sources: [], scannedAt: 0, diagnostics: [], truncated: false, workspace: { path: null, source: 'none' } }
+  const EMPTY: RulesPayload = { rules: [], sources: [], scannedAt: 0, diagnostics: [], truncated: false, workspace: { path: null, source: 'none' }, entryLocation: 'both' }
 
   useEffect(() => {
     let cancelled = false
@@ -984,12 +1037,23 @@ export function useRules(route: string = RULES_ROUTE) {
 
   const selectWorkspace = useCallback((path: string) => { setWorkspacePath(path) }, [])
 
+  /**
+   * Move the entry, optimistically then reconciled like the two switches.
+   *
+   * The write goes to the same route as every other action, and the response
+   * carries the whole document back - the location included, so a rollback
+   * restores the last location the host actually confirmed.
+   */
+  const setEntryLocation = useCallback((location: RulesEntryLocation) => {
+    void send({ action: 'setEntry', location }, 'entry:' + location)
+  }, [send])
+
   return {
     rules: payload.rules, sources: payload.sources, scannedAt: payload.scannedAt,
     scanDiagnostics: payload.diagnostics ?? [], truncated: payload.truncated === true,
-    workspace: payload.workspace,
+    workspace: payload.workspace, entryLocation: payload.entryLocation,
     state, retry, refresh, refreshing, setPayload, pending, error, toggleRule, toggleSource,
-    selectedWorkspace: workspacePath, selectWorkspace,
+    selectedWorkspace: workspacePath, selectWorkspace, setEntryLocation,
   }
 }
 
@@ -1023,6 +1087,7 @@ export function register(ctx: Context, t: (key: string) => string): () => void {
     const {
       rules, sources, workspace, scannedAt, state, retry, refresh, refreshing, pending, error,
       toggleRule, toggleSource, selectedWorkspace, selectWorkspace, scanDiagnostics, truncated,
+      entryLocation, setEntryLocation,
     } = useRules()
     return (
       <RulesPanel
@@ -1044,14 +1109,108 @@ export function register(ctx: Context, t: (key: string) => string): () => void {
         onToggleSource={toggleSource}
         pending={pending}
         error={error}
+        entryLocation={entryLocation}
+        onSetEntryLocation={setEntryLocation}
+        entryPending={pending.some((key) => key.startsWith('entry:'))}
       />
     )
+  }
+
+  // The live registration per slot, addressed by name: the location gate retires
+  // a slot long after keep() filed it, and it has to retire exactly the
+  // registration that is live right now - not merely stop filing new ones.
+  const bySlot = new Map<string, () => void>()
+
+  // The slots the stored location excludes. Kept across re-registrations so a
+  // slot whose inject callback runs again ends up excluded again.
+  const hidden = new Set<string>()
+
+  /**
+   * Retire the live registration for each named slot, and remember the choice.
+   *
+   * Both halves matter. Calling the disposer removes the registration Cordis is
+   * holding; remembering the name covers the other path, where an inject
+   * callback runs again later and would otherwise put the entry back in a place
+   * the user asked it not to be.
+   */
+  const retire = (slots: readonly string[]): void => {
+    for (const slot of slots) {
+      hidden.add(slot)
+      kept.delete(slot)
+      const dispose = bySlot.get(slot)
+      if (dispose === undefined) continue
+      bySlot.delete(slot)
+      // Out of the list as well as called: the outer disposer must not call a
+      // registration that is already gone a second time.
+      const at = disposers.indexOf(dispose)
+      if (at >= 0) disposers.splice(at, 1)
+      dispose()
+    }
   }
 
   const keep = (slot: string, result: unknown): void => {
     if (kept.has(slot)) return
     kept.add(slot)
-    if (typeof result === 'function') disposers.push(result as () => void)
+    if (typeof result !== 'function') return
+    const dispose = result as () => void
+    bySlot.set(slot, dispose)
+    disposers.push(dispose)
+    // The read may have landed before this callback ran - inject order is not a
+    // promise, and a re-registration can come long after. Whoever is second
+    // still reaches the same end state.
+    if (hidden.has(slot)) retire([slot])
+    // The last registration arms the one read: all four are in place by now, so
+    // nothing can be retired before it exists, and a slot re-registered later
+    // is covered by the memory above rather than by a second request.
+    keepStart()
+  }
+
+  let gateStarted = false
+
+  /**
+   * Arm the entry read once, after the fourth slot is registered.
+   *
+   * Deferred rather than run inline because the inject callbacks are the only
+   * thing this function is allowed to rely on: with no slots at all it never
+   * runs, so a context that cannot register has nothing to fetch for. Deferred
+   * in time as well, because Cordis runs an inject callback synchronously and
+   * `register` has to have returned before its disposer can mean anything.
+   */
+  const keepStart = (): void => {
+    if (gateStarted || kept.size < FOUR_SLOTS.length) return
+    gateStarted = true
+    const arm = typeof setTimeout === 'function' ? setTimeout : undefined
+    const run = (): void => { void gate() }
+    if (arm === undefined) run()
+    else arm(run, 0)
+  }
+
+  let live = true
+
+  /**
+   * Read the stored entry location and drop the slots it excludes.
+   *
+   * Every slot is registered first and pruned afterwards, in that order on
+   * purpose: this read is asynchronous and may never answer at all - an older
+   * host serves no entry route, and a page whose plugin was registered by a test
+   * has neither fetch nor DOM. Waiting for the answer before registering would
+   * mean an entry-less panel whenever it did not arrive; pruning only what the
+   * answer excludes leaves the previous layout as the floor.
+   */
+  const gate = async (): Promise<void> => {
+    try {
+      const response = await (globalThis.fetch as typeof fetch)(resolveUrl(ENTRY_ROUTE), { headers: { accept: 'application/json' } })
+      if (!response.ok) return
+      const body: unknown = await response.json()
+      const location = typeof body === 'object' && body !== null ? (body as { entryLocation?: unknown }).entryLocation : undefined
+      // Anything unrecognized - an older host, a value a later build adds -
+      // keeps every slot: silence must never be read as "hide the entry".
+      if (!isRulesEntryLocation(location) || location === 'both' || !live) return
+      retire(ENTRY_HIDES[location])
+    } catch {
+      // No host, no answer, every slot stays. This catch is the entire error
+      // policy, so an unhandled rejection can never reach the page.
+    }
   }
 
   // The section and its icon share one id; a mismatch means no icon renders.
@@ -1080,7 +1239,10 @@ export function register(ctx: Context, t: (key: string) => string): () => void {
       panel,
     )))
 
-  return () => { for (const dispose of disposers) dispose() }
+  return () => {
+    live = false
+    for (const dispose of disposers) dispose()
+  }
 }
 
 /** Panel strings; the locale files carry only the plugin's catalog metadata. */
@@ -1189,6 +1351,11 @@ export const TEXT: Record<'en' | 'zh', Record<string, string>> = {
     // The fourth reason a body can be in the prompt, and the only one that is a
     // fact about this session rather than about the file.
     'note.attached': 'Body resident - this session touched a matching file',
+    // The entry-location control: the group's own label, then one per layout.
+    'entryLocation': 'Entry location',
+    'entry.settings': 'Settings',
+    'entry.sidebar': 'Sidebar',
+    'entry.both': 'Both',
   },
   zh: {
     title: '规则',
@@ -1289,6 +1456,10 @@ export const TEXT: Record<'en' | 'zh', Record<string, string>> = {
     'note.manual': '从不注入',
     'note.off': '已停用',
     'note.attached': '正文常驻 - 本会话已触碰匹配的文件',
+    'entryLocation': '入口位置',
+    'entry.settings': '设置页',
+    'entry.sidebar': '侧边栏',
+    'entry.both': '两处',
   },
 }
 

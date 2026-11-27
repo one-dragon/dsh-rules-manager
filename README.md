@@ -164,7 +164,7 @@ Open **Plugins → Rules Manager**. Settings live in `~/.dsh/rules-manager/state
 | `projectRulesTotal` | `12000` | 0 - 2,000,000 | Total cap for project-scope always-on rules |
 | `readRulesOutput` | `60000` | 1,000 - 4,000,000 | Character cap for one `read_rules` result |
 | `maxScanDepth` | `6` | 0 - 100 | Recursion depth per source root; `0` reads the root only |
-| entry placement | both | at least one | Settings only, sidebar only, or both — at least one is always kept |
+| entry placement | both | settings, sidebar, or both | Settings only, sidebar only, or both — switched from the panel header, and the host and the panel take the answer from the same read; at least one entry is always kept |
 
 Deployment-time pinning is available through the plugin entry's `config:` block in `cordis.patch.yml`.
 

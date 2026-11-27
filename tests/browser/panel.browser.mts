@@ -1,8 +1,9 @@
 // 第 7 层浏览器快照测试：把 lib/client.js 真正载入本机 Edge/Chrome，让面板在真实 DOM
-// 里渲染三份快照（初次渲染、点击 Global 范围页签后、点击 eta 规则开关后），并断言开关
-// 真的发出了 POST 写请求、两次同时渲染逐字节一致、且页面零错误。
+// 里渲染六份快照（初次渲染、点击 Global 范围页签后、点击 eta 规则开关后、点设置页入口、
+// 点侧边栏入口、空工作区变体），并断言开关与入口位置控件真的发出了 POST 写请求、
+// 两次同时渲染逐字节一致、且页面零错误。
 // 断言什么：模块加载契约（只 require react / react jsx-runtime）、apply() 注册的插槽、
-// RulesPanel 的三次真实 DOM、写请求体、同一次运行内两份 innerHTML 完全相同。
+// RulesPanel 的六次真实 DOM、写请求体、同一次运行内两份 innerHTML 完全相同。
 // 风格参照 tests/e2e/smoke.mts：只用 node 内置模块，异步 spawn 子进程，自计时 SIGKILL，零凭据。
 // 运行：node --experimental-strip-types tests/browser/panel.browser.mts
 // 快照：tests/browser/panel.snapshot.html；设置 DSH_BROWSER_UPDATE=1 时改写它，否则只比较。
@@ -15,6 +16,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+// 入口位置路由的路径与宿主实现共用一份常量；panel.ts 只 import type，可在 strip-types 下直接导入。
+import { ENTRY_ROUTE } from '../../src/panel.ts'
 
 const NL = String.fromCharCode(10)
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../', import.meta.url)))
@@ -152,12 +155,16 @@ const FIXTURE_PAYLOAD = {
   diagnostics: [],
   truncated: false,
   workspace: { path: 'repo', source: 'last-scan' },
+  entryLocation: 'both',
 }
 
 /** 面板发出的写请求，落到这份文档上，模拟宿主接受并回传新文档。 */
 function applyAction(document: Record<string, unknown>, action: Record<string, unknown>): Record<string, unknown> {
   const next = JSON.parse(JSON.stringify(document)) as { rules: Array<Record<string, unknown>>; sources: Array<Record<string, unknown>> }
   const scopeMatches = (ruleScope: unknown): boolean => action.scope === undefined || ruleScope === action.scope
+  // A location change touches no row at all. The panel reads the answer out of
+  // the response document, so the fake host carries it the way the real one does.
+  if (action.action === 'setEntry') return { ...next, entryLocation: action.location }
   if (action.action === 'setSource') {
     for (const source of next.sources) {
       if (source.key === action.key && scopeMatches(source.scope)) source.enabled = action.enabled
@@ -182,7 +189,7 @@ function applyAction(document: Record<string, unknown>, action: Record<string, u
 interface ReportedPost { url?: string; body?: string }
 interface ReportMeta {
   ua?: string; requires?: string[]; specId?: string; injected?: string[]
-  registered?: string[]; secondRender?: string; disposer?: string
+  registered?: string[]; secondRender?: string; disposer?: string; entryLocation?: string
 }
 interface Reported { snapshots?: string[]; posts?: ReportedPost[]; errors?: string[]; meta?: ReportMeta }
 
@@ -236,6 +243,7 @@ function startHarness(): Promise<Harness> {
     '/jsx-runtime.js': { body: jsxRuntimeBody(), type: 'text/javascript; charset=utf-8' },
   }
   let currentDocument = JSON.parse(JSON.stringify(FIXTURE_PAYLOAD)) as Record<string, unknown>
+  let currentEntry: unknown = 'both'
   const requested: string[] = []
   let settle: (value: Reported) => void = () => {}
   const reported = new Promise<Reported>((resolve) => { settle = resolve })
@@ -267,11 +275,21 @@ function startHarness(): Promise<Harness> {
           let action: Record<string, unknown> = {}
           try { action = JSON.parse(text) as Record<string, unknown> } catch { action = {} }
           currentDocument = applyAction(currentDocument, action)
+          // Kept in step the way the host keeps its two routes in step: whatever
+          // the last write stored is what a later read of either route answers.
+          if (typeof currentDocument.entryLocation === 'string') currentEntry = currentDocument.entryLocation
           send(200, 'application/json; charset=utf-8', JSON.stringify(currentDocument))
         })
         return
       }
       send(200, 'application/json; charset=utf-8', JSON.stringify(currentDocument))
+      return
+    }
+    if (url === ENTRY_ROUTE) {
+      // Always "both". A stored 'sidebar' would make the gate retire the settings
+      // entry before the first paint, and the two location clicks below need the
+      // control on screen; the layout it produces is a unit test's subject.
+      send(200, 'application/json; charset=utf-8', JSON.stringify({ entryLocation: currentEntry }))
       return
     }
     if (url === '/favicon.ico') { send(204, 'text/plain; charset=utf-8', ''); return }
@@ -342,6 +360,8 @@ const MARKERS = [
   '<!-- SNAPSHOT 2: after clicking the Global scope tab -->',
   '<!-- SNAPSHOT 3: after switching the eta rule off; the write request is asserted below -->',
   '<!-- SNAPSHOT 4: the empty-workspace variant rendered straight from the RulesPanel export -->',
+  '<!-- SNAPSHOT 5: after pressing the Settings entry location; the setEntry write is asserted below -->',
+  '<!-- SNAPSHOT 6: after pressing the Sidebar entry location -->',
 ]
 
 function buildSnapshotFile(snapshots: readonly string[]): string {
@@ -415,6 +435,8 @@ async function main(): Promise<void> {
     const second = snapshots[1] ?? ''
     const third = snapshots[2] ?? ''
     const variant = snapshots[3] ?? ''
+    const settingsOnly = snapshots[4] ?? ''
+    const sidebarOnly = snapshots[5] ?? ''
 
     section('page assertions')
     check('the page reported no window error and no console.error call', errors.length === 0, errors.join(' | '))
@@ -423,15 +445,32 @@ async function main(): Promise<void> {
     check('the bundle required only react and react/jsx-runtime',
       requires.length === 2 && requires[0] === 'react' && requires[1] === 'react/jsx-runtime', JSON.stringify(requires))
     const injected = Array.isArray(meta.injected) ? meta.injected : []
-    check('apply() injected the four slot names', injected.join(',') === 'settings.section,settings.section.icon,sidebar.panellist,main', injected.join(','))
+    check('apply() injected the four slot names, in registration order',
+      injected.slice(0, 4).join(',') === 'settings.section,settings.section.icon,sidebar.panellist,main', injected.join(','))
+    // The names, not the entries: a slot whose service changes runs its inject
+    // callback again, and each name is still meant to appear once in this list.
+    check('the inject list is those four names and nothing else', injected.length === 4, String(injected.length))
+    check('the gate left both entries in place for a host that stores both',
+      String(meta.entryLocation) === 'both', String(meta.entryLocation))
     const registered = Array.isArray(meta.registered) ? meta.registered : []
     check('apply() registered a component for the panel slots',
       registered.includes('settings.section') && registered.includes('main') && registered.includes('sidebar.panellist'), registered.join(','))
     check('apply() returned a disposer function', meta.disposer === 'function', String(meta.disposer))
-    check('four snapshots were reported', snapshots.length === 4, String(snapshots.length))
+    check('six snapshots were reported', snapshots.length === 6, String(snapshots.length))
     check('every snapshot contains the panel root',
-      [first, second, third, variant].every((text) => text.includes('dshrm-panel')),
-      [first, second, third, variant].map((text) => String(text.length)).join(','))
+      [first, second, third, variant, settingsOnly, sidebarOnly].every((text) => text.includes('dshrm-panel')),
+      [first, second, third, variant, settingsOnly, sidebarOnly].map((text) => String(text.length)).join(','))
+    // One occurrence of the attribute: exactly one of the three buttons is
+    // pressed, whatever the location is - 'both' describes the host layout, not
+    // a third pressed button.
+    check('the rendered panel carries the three-location control',
+      first.includes('class="dshrm-entry"') && first.includes('dshrm-entry-btn on')
+      && first.split('aria-pressed="true"').length === 2, 'entry control')
+    check('the settings-only variant presses Settings alone',
+      settingsOnly.includes('dshrm-entry-btn on') && settingsOnly.split('aria-pressed="true"').length === 2, String(settingsOnly.length))
+    check('the sidebar-only variant presses Sidebar alone',
+      sidebarOnly.includes('dshrm-entry-btn on') && sidebarOnly.split('aria-pressed="true"').length === 2, String(sidebarOnly.length))
+    check('the two location clicks changed the markup', settingsOnly !== sidebarOnly && sidebarOnly !== third)
     check('snapshot 1 carries every project rule name',
       ['alpha', 'beta', 'gamma', 'delta', 'epsilon'].every((name) => first.includes('>' + name + '<')), first.length.toString())
     check('snapshot 1 keeps the user tier out of the project scope',
@@ -452,15 +491,28 @@ async function main(): Promise<void> {
     check('snapshot 3 differs from snapshot 2 after the switch click', third !== second && third.length > 0)
     check('the eta row is off in snapshot 3',
       third.includes('dshrm-row dshrm-off" data-rule="home/.claude/eta.md"'), 'eta row')
-    const togglePost = posts.length > 0 ? posts[posts.length - 1] : undefined
+    // The switch is the first write on this page; the location control adds two
+    // more afterwards, so the last request is no longer the one under test.
+    const togglePost = posts.length > 0 ? posts[0] : undefined
     let action: Record<string, unknown> = {}
     if (togglePost !== undefined && typeof togglePost.body === 'string') {
       try { action = JSON.parse(togglePost.body) as Record<string, unknown> } catch { action = {} }
     }
-    check('the switch sent exactly one write request', posts.length === 1, String(posts.length))
-    check('the write request targets the rules route',
-      togglePost !== undefined && typeof togglePost.url === 'string' && togglePost.url.includes('/api/rules-manager/rules.json'),
-      String(togglePost?.url))
+    // Every write on this page - the switch, then the two location clicks - goes
+    // to the catalog route. Nothing else writes at all.
+    check('the switch sent exactly one write request, and the location control two',
+      posts.length === 3, String(posts.length))
+    check('every write request targets the rules route',
+      posts.every((post) => typeof post.url === 'string' && post.url.includes('/api/rules-manager/rules.json')),
+      posts.map((post) => String(post.url)).join(' | '))
+    const locationPost = posts.length > 0 ? posts[posts.length - 1] : undefined
+    let locationChange: Record<string, unknown> = {}
+    if (locationPost !== undefined && typeof locationPost.body === 'string') {
+      try { locationChange = JSON.parse(locationPost.body) as Record<string, unknown> } catch { locationChange = {} }
+    }
+    check('the location control writes the location it pressed, and only that',
+      locationChange.action === 'setEntry' && locationChange.location === 'sidebar'
+      && locationChange.key === undefined && locationChange.path === undefined, String(locationPost?.body))
     check('the write request is the setRule action of the clicked row',
       action.action === 'setRule' && action.key === 'claude' && action.path === 'home/.claude/eta.md'
       && action.enabled === false && action.scope === 'user',

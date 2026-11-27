@@ -368,6 +368,9 @@ const sameScope = (scope: string | undefined, target: string): boolean =>
  * the last confirmed payload) is trivially correct.
  */
 export function optimistic(payload: RulesPayload, action: RulesAction): RulesPayload {
+  // First, and on its own: the location changes no row, and every branch below
+  // reads `key`/`path` off whatever action reaches it.
+  if (action.action === 'setEntry') return { ...payload, entryLocation: action.location }
   if (action.action === 'setSource') {
     return {
       ...payload,

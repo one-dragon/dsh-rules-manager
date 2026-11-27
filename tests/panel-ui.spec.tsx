@@ -653,9 +653,60 @@ describe('the rule row', () => {
   })
 })
 
+describe('the entry location control', () => {
+  const withControl = (over: Partial<Parameters<typeof RulesPanel>[0]>): string =>
+    renderToStaticMarkup(
+      <RulesPanel
+        ctx={undefined as never}
+        t={t}
+        rules={[]}
+        sources={[]}
+        workspace={{ path: '/p', source: 'last-scan' }}
+        state="ready"
+        onRetry={NOOP}
+        onToggleRule={NOOP}
+        onToggleSource={NOOP}
+        pending={[]}
+        error={null}
+        {...over}
+      />,
+    )
+
+  it('renders no control at all when the panel cannot move the entry', () => {
+    // The host that never wired the write path must not get a control whose
+    // buttons do nothing: absence is the honest rendering, not a disabled row.
+    const bare = withControl({})
+    expect(bare).not.toContain('dshrm-entry')
+  })
+
+  it('marks exactly one location as pressed', () => {
+    for (const location of ['settings', 'sidebar', 'both'] as const) {
+      const html = withControl({ entryLocation: location, onSetEntryLocation: NOOP })
+      expect(html).toContain('role="group"')
+      // aria-pressed is the only selected-state signal: three buttons share the
+      // class list, so counting the pressed one is what proves the choice shows.
+      expect(html.split('aria-pressed="true"')).toHaveLength(2)
+      expect(html.split('dshrm-entry-btn on')).toHaveLength(2)
+    }
+  })
+
+  it('names the group and every button in the panel language', () => {
+    const html = withControl({ entryLocation: 'both', onSetEntryLocation: NOOP })
+    expect(html).toContain(t('entryLocation'))
+    for (const key of ['entry.settings', 'entry.sidebar', 'entry.both']) expect(html).toContain(t(key))
+    // A location whose label is missing would render its own key name.
+    expect(t('entry.both')).not.toBe('entry.both')
+  })
+
+  it('disables the row while the write is in flight', () => {
+    const html = withControl({ entryLocation: 'both', onSetEntryLocation: NOOP, entryPending: true })
+    expect(html.split('disabled=""').length - 1).toBeGreaterThanOrEqual(3)
+  })
+})
+
 describe('optimistic update', () => {
   const WS = { path: '/p', source: 'last-scan' as const }
-  const base = { rules: [rule({ path: '/p/a.mdc' })], sources: [source()], scannedAt: 1, workspace: WS }
+  const base = { rules: [rule({ path: '/p/a.mdc' })], sources: [source()], scannedAt: 1, workspace: WS, entryLocation: 'both' as const }
 
   it('flips a rule off immediately', () => {
     const next = optimistic(base, { action: 'setRule', key: 'codebuddy', path: '/p/a.mdc', enabled: false })
@@ -699,6 +750,18 @@ describe('optimistic update', () => {
     expect(next).not.toBe(base)
     expect(base.sources[0]?.enabled).toBe(true)
     expect(base.rules[0]?.active).toBe(true)
+  })
+
+  it('moves the entry location without touching a single row', () => {
+    // The entry action carries neither a key nor a path, so it must be handled
+    // before the rule branch — otherwise it falls through and flips a row whose
+    // key is undefined.
+    const next = optimistic(base, { action: 'setEntry', location: 'sidebar' })
+    expect(next.entryLocation).toBe('sidebar')
+    expect(next).not.toBe(base)
+    expect(next.rules).toEqual(base.rules)
+    expect(next.sources).toEqual(base.sources)
+    expect(base.entryLocation).toBe('both')
   })
 
   it('flips only the tier a rule action names', () => {

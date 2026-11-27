@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apply } from '../src/index.ts'
 import { Config, type Config as RulesManagerConfig } from '../src/config.ts'
-import { RULES_ROUTE } from '../src/panel.ts'
+import { ENTRY_ROUTE, RULES_ROUTE } from '../src/panel.ts'
 import { defaultState, setStateDir, statePath, writeState } from '../src/state.ts'
 
 /**
@@ -169,11 +169,27 @@ describe('apply — the host route that feeds the browser panel', () => {
     }
   }
 
-  it('registers exactly one exact Fetch route on connection', () => {
+  it('registers exactly one exact Fetch route per endpoint on connection', () => {
     const conn = connectionStub()
     const { ctx } = webContext({ connection: conn.service })
     apply(ctx as never, resolveConfig())
-    expect(conn.routes.length).toBe(1)
+    // Two endpoints now, and the catalog one is still first: a reader that
+    // takes routes[0] keeps getting exactly the route it always got.
+    expect(conn.routes.map((route) => route['path'])).toEqual([RULES_ROUTE, ENTRY_ROUTE])
+  })
+
+  it('serves the entry location over GET alone, and follows what state says', async () => {
+    const conn = connectionStub()
+    const { ctx } = webContext({ connection: conn.service })
+    apply(ctx as never, resolveConfig())
+    const entry = conn.routes[1]!
+    // Read-only: the panel asks this before it has a workspace, so it must not
+    // be able to change anything, and it must not answer from a cache either.
+    expect(entry['methods']).toEqual(['GET'])
+    expect(entry['path']).toBe(ENTRY_ROUTE)
+    await writeState({ ...defaultState(), entryLocation: 'sidebar' })
+    const body = await (await (entry['fetch'] as () => Promise<Response>)()).json() as { entryLocation: string }
+    expect(body.entryLocation).toBe('sidebar')
   })
 
   it('declares the route the client actually fetches, under /api', () => {
@@ -878,7 +894,7 @@ describe('apply — the host route that feeds the browser panel', () => {
     const conn = connectionStub()
     const { ctx } = webContext({}, project, { connection: conn.service })
     apply(ctx as never, resolveConfig())
-    expect(conn.routes.length).toBe(1)
+    expect(conn.routes.map((route) => route['path'])).toEqual([RULES_ROUTE, ENTRY_ROUTE])
   })
 
   it('prefers connection.fetch over a bare webServer route', () => {
@@ -890,7 +906,7 @@ describe('apply — the host route that feeds the browser panel', () => {
       webServer: { register: (route: Record<string, unknown>) => { webRoutes.push(route); return () => {} } },
     })
     apply(ctx as never, resolveConfig())
-    expect(conn.routes.length).toBe(1)
+    expect(conn.routes.map((route) => route['path'])).toEqual([RULES_ROUTE, ENTRY_ROUTE])
     expect(webRoutes.length).toBe(0)
   })
 
@@ -898,7 +914,8 @@ describe('apply — the host route that feeds the browser panel', () => {
     const conn = connectionStub()
     const { ctx, effects } = webContext({ connection: conn.service })
     apply(ctx as never, resolveConfig())
-    expect(effects.length).toBe(1)
+    // One effect per registered route, so unloading the plugin removes both.
+    expect(effects.length).toBe(2)
   })
 
   it('switches to a named workspace and publishes the candidates it offered', async () => {

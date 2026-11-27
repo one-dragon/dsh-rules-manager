@@ -24,7 +24,7 @@ const source = (over: Partial<RuleSourceRow> = {}): RuleSourceRow => ({
 })
 
 const payload = (rules: readonly RuleRow[], sources: readonly RuleSourceRow[]): RulesPayload => ({
-  rules, sources, scannedAt: 1, workspace: { path: 'D:/repo', source: 'last-scan' },
+  rules, sources, scannedAt: 1, workspace: { path: 'D:/repo', source: 'last-scan' }, entryLocation: 'both',
 })
 
 describe('groupBySource — a host list that repeats a key', () => {

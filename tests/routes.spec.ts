@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apply } from '../src/index.ts'
 import { Config, type Config as RulesManagerConfig } from '../src/config.ts'
-import { RULES_ROUTE } from '../src/panel.ts'
+import { ENTRY_ROUTE, RULES_ROUTE } from '../src/panel.ts'
 import { setStateDir, statePath } from '../src/state.ts'
 
 /**
@@ -115,6 +115,52 @@ interface PanelDiagnosticRow {
 }
 
 describe('apply — host route branches the entry suite leaves uncovered', () => {
+  it('answers the entry route from state alone, and registers it after the catalog', async () => {
+    const { routes, fetch } = routeContext()
+    // Order matters: every other case drives routes[0], and the catalog route
+    // has to stay the first one a reader of the registration list sees.
+    expect(routes.map((route) => route['path'])).toEqual([RULES_ROUTE, ENTRY_ROUTE])
+    expect(routes[1]?.['methods']).toEqual(['GET'])
+    const entry = routes[1]!['fetch'] as (request?: Request) => Promise<Response>
+    const body = await (await entry(new Request(`http://localhost${ENTRY_ROUTE}`))).json() as { entryLocation: string }
+    expect(body.entryLocation).toBe('both')
+    // The catalog route publishes the same value, so the two answers the panel
+    // reads on first paint cannot disagree.
+    const panel = await (await fetch(panelGet())).json() as { entryLocation: string }
+    expect(panel.entryLocation).toBe('both')
+  })
+
+  it('moves the entry location and remembers it across a restart', async () => {
+    const { fetch } = routeContext()
+    const moved = await (await fetch(panelPost(JSON.stringify({ action: 'setEntry', location: 'sidebar' })))).json() as { entryLocation: string }
+    expect(moved.entryLocation).toBe('sidebar')
+    const onDisk = JSON.parse(await readFile(statePath(), 'utf8')) as { entryLocation?: string }
+    expect(onDisk.entryLocation).toBe('sidebar')
+    // The value is not held in memory: a fresh context reads the same answer
+    // straight from state.json, which is what a host restart looks like.
+    const { routes } = routeContext()
+    const entry = routes[1]!['fetch'] as (request?: Request) => Promise<Response>
+    const again = await (await entry()).json() as { entryLocation: string }
+    expect(again.entryLocation).toBe('sidebar')
+  })
+
+  it('refuses a location it does not know and leaves state untouched', async () => {
+    const { routes, fetch } = routeContext()
+    for (const location of ['everywhere', 'Settings', 7, null, {}, ['both']]) {
+      const response = await fetch(panelPost(JSON.stringify({ action: 'setEntry', location })))
+      expect(response.status, JSON.stringify(location)).toBe(400)
+      const body = await response.json() as { ok: boolean }
+      expect(body.ok).toBe(false)
+    }
+    // A refused write must not change the file. The entry route creates it on
+    // first read, so the baseline this case compares against is the answer a
+    // fresh install serves, read back through the route the panel reads.
+    const entry = routes[1]!['fetch'] as (request?: Request) => Promise<Response>
+    const after = await (await entry()).json() as { entryLocation: string }
+    expect(after.entryLocation).toBe('both')
+  })
+
+
   it('falls back to the default workspace when the request URL cannot be parsed', async () => {
     const { fetch } = routeContext()
 

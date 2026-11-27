@@ -45,14 +45,16 @@ function realLocale(active: string) {
 function fakeCtx(locale?: unknown) {
   const registered: Array<Record<string, unknown>> = []
   const injected: string[] = []
-  const disposed: number[] = []
+  // Named, not counted: the location decides *which* pair of slots goes, and a
+  // bare count cannot tell a correct trim from a swapped one.
+  const disposed: string[] = []
   const effects: number[] = []
   const callbacks: Array<() => void> = []
   const ctx = {
     slots: {
       register: (definition: Record<string, unknown>) => {
         registered.push(definition)
-        return () => { disposed.push(registered.length) }
+        return () => { disposed.push(String(definition['name'])) }
       },
       inject: (name: string, callback: () => void) => { injected.push(name); callbacks.push(callback); callback() },
     },
@@ -133,6 +135,116 @@ describe('registration', () => {
   })
 })
 
+describe('the entry location decides which slots survive', () => {
+  // Every panel is registered into all four slots before the host is asked
+  // where the entry belongs, so the first paint can never be a panel with no
+  // way to reach it. The answer then retires the slots the location excludes,
+  // and nothing else: an unanswered, refused or unreadable route leaves the
+  // default layout in place.
+  const drain = async (): Promise<void> => {
+    for (let i = 0; i < 3; i += 1) await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+
+  const boot = async (answer: () => Promise<unknown>): Promise<{ disposed: string[]; rerun: () => void }> => {
+    vi.stubGlobal('fetch', answer)
+    try {
+      const fake = fakeCtx()
+      register(fake.ctx as never, (k) => k)
+      await drain()
+      return { disposed: fake.disposed, rerun: fake.rerun }
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }
+
+  const answerWith = (body: unknown) => async (): Promise<unknown> => ({ ok: true, status: 200, json: async () => body })
+
+  it('retires the two slots a settings-only location excludes', async () => {
+    const { disposed } = await boot(answerWith({ entryLocation: 'settings' }))
+    // settings.section and its icon stay; the sidebar entry and its main panel
+    // are the two that must go, so exactly those two disposers run.
+    expect([...disposed].sort()).toEqual(['main', 'sidebar.panellist'])
+  })
+
+  it('retires the settings slots when the entry belongs in the sidebar', async () => {
+    const { disposed } = await boot(answerWith({ entryLocation: 'sidebar' }))
+    expect([...disposed].sort()).toEqual(['settings.section', 'settings.section.icon'])
+  })
+
+  it('keeps every slot when the answer is missing, refused or unreadable', async () => {
+    // Each of these leaves the panel reachable from both places, which is the
+    // state a host that never heard of the route would render anyway.
+    const cases: Array<() => Promise<unknown>> = [
+      answerWith({ rules: [] }),
+      answerWith({ entryLocation: 'everywhere' }),
+      answerWith({ entryLocation: 'both' }),
+      // A body that is not even an object: read as "no answer", not as a
+      // reason to hide an entry.
+      answerWith('nope'),
+      answerWith(null),
+      async () => ({ ok: false, status: 404, json: async () => ({}) }),
+      async () => { throw new Error('the host hung up') },
+    ]
+    for (const answer of cases) {
+      const { disposed } = await boot(answer)
+      expect(disposed).toHaveLength(0)
+    }
+  })
+
+  it('does not resurrect a retired slot when the inject callbacks run again', async () => {
+    // The host re-runs an inject callback whenever its service changes. A slot
+    // that was retired because the location excludes it must not come back on
+    // the next run, or the panel would drift back to both entries.
+    const { disposed, rerun } = await boot(answerWith({ entryLocation: 'settings' }))
+    expect(disposed).toHaveLength(2)
+    rerun()
+    await drain()
+    expect(disposed).toHaveLength(4)
+  })
+
+  it('survives a registration that hands back no disposer at all', async () => {
+    // Cordis's register always answers with a disposer, but the panel does not
+    // rely on that: a slot whose registration answered with something else must
+    // still be remembered as hidden, or the next inject run would put the entry
+    // back exactly where the user asked it not to be.
+    const names: string[] = []
+    const ctx = {
+      slots: {
+        register: (definition: Record<string, unknown>): undefined => { names.push(String(definition['name'])); return undefined },
+        inject: (_name: string, callback: () => void): void => { callback() },
+      },
+      get: () => undefined,
+      effect: (callback: () => unknown): void => { callback() },
+    }
+    vi.stubGlobal('fetch', answerWith({ entryLocation: 'settings' }))
+    try {
+      expect(() => register(ctx as never, (key) => key)).not.toThrow()
+      await drain()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    expect(names).toEqual(['settings.section', 'settings.section.icon', 'sidebar.panellist', 'main'])
+  })
+
+  it('reads the location inline where the host has no timer to defer it with', async () => {
+    // The deferred read exists so register() has returned before its own
+    // disposer can mean anything. A host without setTimeout still has to learn
+    // the location - the read just happens in the same turn.
+    const original = globalThis.setTimeout
+    const fake = fakeCtx()
+    vi.stubGlobal('fetch', answerWith({ entryLocation: 'settings' }))
+    try {
+      vi.stubGlobal('setTimeout', undefined)
+      register(fake.ctx as never, (key) => key)
+    } finally {
+      vi.stubGlobal('setTimeout', original)
+      vi.unstubAllGlobals()
+    }
+    await drain()
+    expect(fake.disposed).toHaveLength(2)
+  })
+})
+
 describe('the host data path', () => {
   it('reads the whole document from the host route', async () => {
     const rows = [rule()]
@@ -143,7 +255,7 @@ describe('the host data path', () => {
     // The scan's own diagnostics and its truncation flag travel beside the
     // rules: they are about the walk, so no single row can carry them.
     expect(await fetchRules('/rules-manager/rules.json', doFetch as never))
-      .toEqual({ rules: rows, sources, scannedAt: 42, diagnostics: [], truncated: false, workspace: { path: null, source: 'none' } })
+      .toEqual({ rules: rows, sources, scannedAt: 42, diagnostics: [], truncated: false, workspace: { path: null, source: 'none' }, entryLocation: 'both' })
   })
 
   it('tolerates a host that predates sources/scannedAt', async () => {
@@ -152,7 +264,18 @@ describe('the host data path', () => {
     const rows = [rule()]
     const doFetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ rules: rows }) }))
     expect(await fetchRules('/x.json', doFetch as never))
-      .toEqual({ rules: rows, sources: [], scannedAt: 0, diagnostics: [], truncated: false, workspace: { path: null, source: 'none' } })
+      .toEqual({ rules: rows, sources: [], scannedAt: 0, diagnostics: [], truncated: false, workspace: { path: null, source: 'none' }, entryLocation: 'both' })
+  })
+
+  it('falls back to both when the host sends a location this build does not know', async () => {
+    // A host from a future version may name a location this build has never
+    // heard of. Rendering it verbatim would put the control in a state no
+    // button matches, so the read is narrowed once, at the boundary.
+    const rows = [rule()]
+    const strange = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ rules: rows, entryLocation: 'everywhere' }) }))
+    const numeric = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ rules: rows, entryLocation: 7 }) }))
+    expect((await fetchRules('/x.json', strange as never)).entryLocation).toBe('both')
+    expect((await fetchRules('/x.json', numeric as never)).entryLocation).toBe('both')
   })
 
   it('posts an action and returns the refreshed document', async () => {
@@ -183,6 +306,19 @@ describe('the host data path', () => {
       .toEqual({ action: 'setSource', key: 'agents', enabled: false, scope: 'user' })
     expect(JSON.parse(String(doFetch.mock.calls[1]?.[1]?.body)))
       .toEqual({ action: 'setRule', key: 'agents', path: '/p/a.md', enabled: true, scope: 'project' })
+  })
+
+  it('posts an entry location change as its own action', async () => {
+    // The location is neither a rule nor a source, so it travels under its own
+    // action name: a host that predates it answers 400 instead of silently
+    // writing a switch it does not understand.
+    const doFetch = vi.fn(async (_url: string, init: { body?: string }) => ({
+      ok: true, status: 200,
+      json: async () => ({ rules: [], sources: [], scannedAt: 7, entryLocation: 'sidebar' }),
+    }))
+    const out = await postAction({ action: 'setEntry', location: 'sidebar' }, '/x.json', doFetch as never)
+    expect(out.entryLocation).toBe('sidebar')
+    expect(JSON.parse(String(doFetch.mock.calls[0]?.[1]?.body))).toEqual({ action: 'setEntry', location: 'sidebar' })
   })
 
   it('rejects a failed write instead of reporting success', async () => {

@@ -8,6 +8,8 @@
 <div id="root"></div>
 <div id="root2"></div>
 <div id="root3"></div>
+<div id="root4"></div>
+<div id="root5"></div>
 <script>
 // Error and write-request capture, installed before any library loads so a
 // failure while the bundle itself is evaluated is reported too.
@@ -27,13 +29,22 @@ console.error = function () {
 window.__dshrmRequires = []
 window.__dshrmPosts = []
 window.__dshrmFetch = window.fetch.bind(window)
+// What the panel's own entry-location read was answered with, recorded from the
+// response rather than assumed: the gate is the only thing that reads this route.
+window.__dshrmEntry = ""
 window.fetch = function (input, init) {
   var method = init && init.method ? String(init.method).toUpperCase() : "GET"
+  var url = typeof input === "string" ? input : (input && input.url ? String(input.url) : String(input))
   if (method === "POST") {
-    var url = typeof input === "string" ? input : (input && input.url ? String(input.url) : String(input))
     window.__dshrmPosts.push({ url: url, body: init && typeof init.body === "string" ? init.body : "" })
   }
-  return window.__dshrmFetch(input, init)
+  var result = window.__dshrmFetch(input, init)
+  if (method === "GET" && url.indexOf("/api/rules-manager/entry.json") !== -1 && result && typeof result.then === "function") {
+    result.then(function (response) { return response.clone().json() }).then(function (body) {
+      window.__dshrmEntry = body && body.entryLocation ? String(body.entryLocation) : ""
+    }, function () { window.__dshrmEntry = "" })
+  }
+  return result
 }
 </script>
 <script src="/react.js"></script>
@@ -63,7 +74,7 @@ window.__ModuleLoader__ = {
     snapshots: [],
     posts: [],
     errors: [],
-    meta: { ua: navigator.userAgent, requires: [], specId: "", injected: [], registered: [], secondRender: "", disposer: "" }
+    meta: { ua: navigator.userAgent, requires: [], specId: "", injected: [], registered: [], secondRender: "", disposer: "", entryLocation: "" }
   }
 
   function sleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
@@ -107,7 +118,9 @@ window.__ModuleLoader__ = {
         },
         register: function (definition, component) {
           registered[definition.name] = component
-          return function () {}
+          // A real disposer, not an empty function: the location gate retires a
+          // slot by calling this, and a no-op would hide whether it worked.
+          return function () { delete registered[definition.name] }
         }
       },
       effect: function (callback) {
@@ -161,6 +174,41 @@ window.__ModuleLoader__ = {
     })
     await sleep(50)
     report.snapshots[2] = document.getElementById("root").innerHTML
+
+    function pressEntry(label) {
+      var group = document.querySelector(".dshrm-entry")
+      if (group === null) throw new Error("the entry location control was not rendered")
+      var buttons = group.querySelectorAll("button")
+      for (var index = 0; index < buttons.length; index += 1) {
+        if (buttons[index].textContent === label) { buttons[index].click(); return }
+      }
+      throw new Error("the entry location button " + label + " was not rendered")
+    }
+
+    var beforeFirst = window.__dshrmPosts.length
+    pressEntry("Settings")
+    await waitFor("the Settings entry location write", 10000, function () { return window.__dshrmPosts.length > beforeFirst })
+    await waitFor("the Settings button to read as pressed", 10000, function () {
+      var group = document.querySelector(".dshrm-entry")
+      var pressed = group === null ? [] : group.querySelectorAll('button[aria-pressed="true"]')
+      return pressed.length === 1 && pressed[0].textContent === "Settings"
+    })
+    await sleep(50)
+    report.snapshots[4] = document.getElementById("root").innerHTML
+
+    var beforeSecond = window.__dshrmPosts.length
+    pressEntry("Sidebar")
+    await waitFor("the Sidebar entry location write", 10000, function () { return window.__dshrmPosts.length > beforeSecond })
+    await waitFor("the Sidebar button to read as pressed", 10000, function () {
+      var group = document.querySelector(".dshrm-entry")
+      var pressed = group === null ? [] : group.querySelectorAll('button[aria-pressed="true"]')
+      return pressed.length === 1 && pressed[0].textContent === "Sidebar"
+    })
+    await sleep(50)
+    report.snapshots[5] = document.getElementById("root").innerHTML
+    // Read after every click has settled: the gate's fetch resolves early, but
+    // this is the first point where nothing else is in flight.
+    report.meta.entryLocation = window.__dshrmEntry
 
     var rootC = window.ReactDOM.createRoot(document.getElementById("root3"))
     rootC.render(window.React.createElement(mod.RulesPanel, {

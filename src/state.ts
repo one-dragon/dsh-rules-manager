@@ -9,6 +9,7 @@ import type { Stats } from 'node:fs'
 import { promises as fs } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
+import { isRulesEntryLocation, type RulesEntryLocation } from './panel.ts'
 
 export interface ManagerState {
   readonly version: 1
@@ -17,7 +18,7 @@ export interface ManagerState {
   /** Individually disabled rules, keyed by source then file path. */
   readonly disabled: Record<string, string[]>
   /** Where the entry appears: settings only, sidebar only, or both. */
-  readonly entryLocation: 'settings' | 'sidebar' | 'both'
+  readonly entryLocation: RulesEntryLocation
   /** Budget overrides; absent means use the built-in default. */
   readonly budgets: Record<string, number>
 }
@@ -73,7 +74,11 @@ export async function readState(): Promise<ManagerState> {
       version: 1,
       sources: candidate.sources ?? {},
       disabled: candidate.disabled ?? {},
-      entryLocation: candidate.entryLocation ?? 'both',
+      // Checked, not defaulted: the file is hand-editable, and a typo used to
+      // travel through this read into the panel, where a location no branch
+      // matched registered the entry into no slots at all and the panel simply
+      // disappeared. `both` keeps it reachable so the typo can be corrected.
+      entryLocation: isRulesEntryLocation(candidate.entryLocation) ? candidate.entryLocation : 'both',
       budgets: candidate.budgets ?? {},
     }
   } catch {
