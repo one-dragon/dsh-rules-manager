@@ -124,6 +124,9 @@ const ciText = fs.existsSync(path.join(ROOT, '.github/workflows/ci.yml')) ? fs.r
 check('CI 工作流跑 npm run check', ciText.includes('npm run check'))
 check('CI 工作流跑覆盖率门禁', ciText.includes('npm run test:coverage'))
 check('CI 工作流不消费凭据', !/DEEPSEEK_API_KEY|secrets\./.test(ciText))
+// A prerelease is only installable by name: the `@0.2` range dropped it, so the
+// install step failed with ETARGET before the smoke lane could run (2026-11-27).
+check('CI 工作流钉住可解析的预发布 CLI', /@deepseek-ai\/dsh@\d+\.\d+\.\d+-rc\.\d+/.test(ciText))
 check('详情页文档各恰好一行图片', ['docs/DETAIL.md', 'docs/DETAIL.zh.md'].every((f) => (deepDocLines(f).filter((l) => l.includes('![')).length) === 1))
 
 console.log('\n════ 5. locale 元数据 ════')

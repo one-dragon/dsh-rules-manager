@@ -32,8 +32,11 @@ jobs:
       - run: npm run test:integration
       # The smoke lane drives its own DSH process. The published CLI carries the
       # headless template (verified: it boots and composes this plugin), so no
-      # desktop install is needed; keep the range inside engines.dsh.
-      - run: npm install --prefix "$RUNNER_TEMP/dsh" --no-audit --no-fund @deepseek-ai/dsh@0.2
+      # desktop install is needed. Name the prerelease exactly: `@0.2` is a
+      # semver range, ranges never match prereleases, so npm resolved nothing
+      # and the step died with ETARGET on the fifth run (2026-11-27). Keep the
+      # pin inside engines.dsh.
+      - run: npm install --prefix "$RUNNER_TEMP/dsh" --no-audit --no-fund @deepseek-ai/dsh@0.2.2-rc.5
       - run: npm run test:e2e
         env:
           DSH_CLI: ${{ runner.temp }}/dsh/node_modules/.bin/dsh
