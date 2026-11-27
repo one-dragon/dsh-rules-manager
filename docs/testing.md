@@ -58,7 +58,7 @@
 
 ## 无 key 的车道进 CI
 
-官方第 4 条规矩说「不调用模型的测试属于 CI，而不是待在 key 门槛后面」，所以 `.github/workflows/ci.yml` 把这些层接在 `ubuntu-latest` 上，按顺序跑：`npm i -g pnpm@10` → `npm ci` → `npm run check` → `npm run test:coverage` → `npm run test:snapshot` → `npm run test:integration` → 装一份 npm 发布的 `@deepseek-ai/dsh@0.2` 到 `$RUNNER_TEMP/dsh` → `npm run test:e2e`（`DSH_CLI` 指向那份 `.bin/dsh`，超时 15 分钟）。装 pnpm 是因为 `dsh plugin add` 会调它，而 runner 镜像不自带；装发布的 CLI 是因为它的 `headless` 模板自带，不需要桌面端安装（2026-11-27 实测：发布包 `dsh --profile p1 --from-default-profile headless --dump-config` rc=0，`bundles` 里能看到本插件）。工作流里没有任何凭据字段，`DEEPSEEK_API_KEY` 与 `secrets.` 都不出现。
+官方第 4 条规矩说「不调用模型的测试属于 CI，而不是待在 key 门槛后面」，所以 `.github/workflows/ci.yml` 把这些层接在 `ubuntu-latest` 上，按顺序跑：`npm i -g pnpm@10` → `npm ci` → `npm run check` → `npm run test:coverage` → `npm run test:snapshot` → `npm run test:integration` → 装一份 npm 发布的 `@deepseek-ai/dsh@0.2.2-rc.5` 到 `$RUNNER_TEMP/dsh`（预发布版本必须按名字写死：`@0.2` 这样的范围在 npm 语义下**不匹配任何预发布版本**，第 5 次运行因此在该步报 `ETARGET: No matching version found` 而失败） → `npm run test:e2e`（`DSH_CLI` 指向那份 `.bin/dsh`，超时 15 分钟）。装 pnpm 是因为 `dsh plugin add` 会调它，而 runner 镜像不自带；装发布的 CLI 是因为它的 `headless` 模板自带，不需要桌面端安装（2026-11-27 实测：发布包 `dsh --profile p1 --from-default-profile headless --dump-config` rc=0，`bundles` 里能看到本插件）。工作流里没有任何凭据字段，`DEEPSEEK_API_KEY` 与 `secrets.` 都不出现。
 
 带 key 的 `test:e2e:live` 刻意不进 CI —— 官方要求这类车道在没有凭据时自跳过，本仓库的做法是把凭据留在本机。`test:browser` 需要无头 Edge/Chrome（`ubuntu-latest` 上两者都没有，跑起来只会打印 SKIPPED，等于没跑），`test:bench` 是宽松上限的回归护栏；两层都保留在本机执行。
 
