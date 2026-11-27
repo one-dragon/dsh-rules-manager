@@ -514,12 +514,13 @@ describe('attachedRules - the base directory', () => {
   })
 
   it('normalizes Windows separators on both sides', () => {
-    // Absolute on every platform: a drive-letter root is absolute only under
-    // win32, so `node:path` rewrites `D:\proj` into a nonsense path on posix and
-    // the rule never matches there. A leading separator keeps the fixture
-    // genuinely absolute while every separator inside stays Windows-shaped.
+    // Absolute on every platform, and the root is spelled with forward slashes
+    // on purpose: a drive-letter root is absolute only under win32, so `node:path`
+    // rewrites `D:\proj` into a nonsense path on posix and the rule never matches
+    // there. Only the separators *inside* the two paths stay Windows-shaped, which
+    // is the normalization this case is about.
     const sep = BACKSLASH
-    const projectRoot = ['', 'proj'].join(sep)
+    const projectRoot = '/proj'
     const rule = mkRule({
       path: [projectRoot, '.cursor', 'rules', 'ts.mdc'].join(sep),
       type: 'requested',
