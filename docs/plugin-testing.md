@@ -160,15 +160,17 @@
 
 ### 6.3 故意注入回归看红的实测清单
 
-官方第 40 行要求护栏必须能红（A guard only guards if the regression fails it）。下面三次实验都是 2026-11-27 当场做的：先改一处，看它变红，再还原，并核对文件 revision 与实验前逐字相同。
+官方第 40 行要求护栏必须能红（A guard only guards if the regression fails it）。下面四次实验都是 2026-11-27 当场做的：先改一处，看它变红，再还原，并核对文件 revision 与实验前逐字相同。
 
 | 层 | 改了什么 | 观察到的红色 | 还原 |
 | --- | --- | --- | --- |
 | 录制会话快照 | 把 `tests/snapshot/session.snapshot.json` 里 `modelVisibleRulesText` 的首个 `number` 改成 `NUMBER` | `node --experimental-strip-types tests/snapshot/session.snapshot.mts` 报 checks 18 项 / 通过 17 项、exit 1，并打印第一处不同的字符偏移与两侧上下文 | 18/18、exit 0，revision 与实验前相同（6eba49a6 开头） |
 | 真浏览器快照 | 把 `tests/browser/panel.snapshot.html` 注释里的 `first` 改成 `FIRST` | `node --experimental-strip-types tests/browser/panel.browser.mts` 报 checks 25 项 / failures 1：`FAIL the rendered panel matches the stored snapshot byte for byte -- first difference at byte 275 (file line 5)` | 25/25、failures 0，revision 与实验前相同（ed30c8f6 开头） |
+| 诊断码改名 | 把 `src/attach.ts` 里的 `attach.slow` 改成 `attach.slowRENAMED` | `npx vitest run` 报 1 failed / 24 passed 文件、1 failed / 872 passed 用例，输出 `FAIL tests/attach.spec.ts > attachedRules - self-check budget > warns and skips a rule whose matchers exceed the self-check budget` 与 `expected 'attach.slowRENAMED' to be 'attach.slow'` | 改回 `attach.slow` 后回到 25 个文件 / 873 个用例全过；`git diff --stat -- src/attach.ts` 为空，即与提交版本逐字相同 |
 | 覆盖率门禁 | 在 `vitest.config.ts` 的 thresholds 里临时加 `branches: 100` | 六条 ERROR 同时出现：`src/client/index.tsx` 99.67、`src/globs.ts` 95.65、`src/index.ts` 92.51、`src/parse.ts` 96.1、`src/scan.ts` 95.65、`src/token-count.ts` 97.36 | 去掉该阈值后回到「25 个文件 / 873 个用例全过、残留分支 1404/1436」 |
 
-这三次实验同时是「哪些层真的会拦人」的证据：快照与浏览器两层拦的是渲染与注入正文的逐字节漂移，覆盖率门禁拦的是「新增分支没被任何输入走到」。真机冒烟那一层的对照断言（禁用组必须不含 `<rules>`）在 `tests/e2e/smoke.mts` 里常驻，不需要临时改文件就能复核。
+这四次实验同时是「哪些层真的会拦人」的证据：快照与浏览器两层拦的是渲染与注入正文的逐字节漂移，覆盖率门禁拦的是「新增分支没被任何输入走到」。真机冒烟那一层的对照断言（禁用组必须不含 `<rules>`）在 `tests/e2e/smoke.mts` 里常驻，不需要临时改文件就能复核。
+
 ## 七、维护提醒
 
 1. 官方 docs/testing.md 改动后，重新 fetch 并核对本文件的层数、命令名、四条规矩的引文与行号。
