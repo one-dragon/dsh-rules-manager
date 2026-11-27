@@ -432,7 +432,6 @@ async function main(): Promise<void> {
     check('被劈开的代理对被整对丢弃：标记前一个字符不是半个 emoji', markAt >= 0 && (h4Block.charCodeAt(markAt - 1) < 0xd800 || h4Block.charCodeAt(markAt - 1) > 0xdfff))
     check('被劈开的代理对被整对丢弃：保留正文比上限少一个字符', headAt >= 0 && markAt - headAt - 1 === 7998, 'kept=' + String(markAt - headAt - 1))
     check('被劈开的代理对没有以完整形态留在保留正文里', h4Block.slice(headAt, markAt).indexOf(EMOJI) < 0)
-    note('DIAG marker=' + JSON.stringify(h4Block.slice(markAt, markAt + 40)) + ' tail=' + JSON.stringify(h4Block.slice(Math.max(0, markAt - 8), markAt)) + ' keptExclNl=' + String(markAt - 2 - headAt) + ' emojiAt=' + String(h4Block.indexOf(EMOJI)) + ' head=' + JSON.stringify(h4Block.slice(headAt, headAt + 20)))
     const loneHigh = Array.from(h4Block).some((ch) => { const cp = ch.codePointAt(0) ?? 0; return cp >= 0xd800 && cp <= 0xdbff })
     check('注入块里没有孤立高代理', !loneHigh)
     check('超长规则会话收尾（rc=0）', h4.status === 0, failureDetail(h4))
