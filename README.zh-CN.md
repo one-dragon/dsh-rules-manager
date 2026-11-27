@@ -5,10 +5,12 @@
 [English](README.md) | 中文
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![DSH](https://img.shields.io/badge/DSH-0.2.2--rc.3-4D6BFE)](package.json)
+[![DSH](https://img.shields.io/badge/DSH-0.2.2--rc.5-4D6BFE)](package.json)
 [![dsh-plugin](https://img.shields.io/badge/dsh--plugin-yes-2496ED)](package.json)
 
 ---
+
+![规则面板：左侧是来源，右侧是每条规则的状态与层级](docs/preview.svg)
 
 ## 它做什么
 
@@ -260,7 +262,7 @@ npm run test                 # vitest，全量套件（25 个 spec 文件）
 npm run test:coverage        # 同一套件，外加每文件 100% 的覆盖率门禁
 npm run test:integration      # 真实项目 + 真实规则文件
 npm run test:e2e             # 真实 DSH 会话 + 本地模型 stub，无需凭据
-npm run test:e2e:live        # 真模型；需要 DEEPSEEK_API_KEY，未设置时自跳过
+npm run test:e2e:live        # 真模型；需要 DEEPSEEK_API_KEY（或 LIVE_KEY_ENV），未设置时自跳过
 npm run test:snapshot        # 录制的会话转录，逐字节比对
 npm run test:browser         # 真实无头浏览器渲染面板，逐字节比对
 npm run test:bench           # 扫描、渲染、附着与 read_rules 的耗时
@@ -287,7 +289,7 @@ dsh --profile scratch --dump-config          # exit 0，条目出现在树里
 dsh --profile scratch --dump-config-schema   # Config 被解析，默认值正确
 ```
 
-`--dump-config` 把我们的 `cordis.patch.yml` 层组合进了树；`--dump-config-schema` 从我们的 schemastery `Config` 生成了 JSON Schema，**所有文档中的默认值**（`8000`、`6000`、`12000`、`60000`）都正确。
+`--dump-config` 把我们的 `cordis.patch.yml` 层组合进了树；`--dump-config-schema` 从我们的 schemastery `Config` 生成了 JSON Schema，**所有文档中的默认值**（`8000`、`6000`、`12000`、`60000`、`6`）都正确。
 
 测试深度 —— 每一层能证明什么、官方政策要求什么、19 个真实第三方 DSH 插件怎么测自己 —— 写在 [docs/plugin-testing.md](docs/plugin-testing.md) 里，本仓库逐层就位情况是该文件里的一张表。
 

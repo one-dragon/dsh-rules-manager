@@ -125,6 +125,7 @@
 | 真浏览器快照 | npm run test:browser：无头 Edge 伺服真实 lib/client.js 渲染面板，逐字节比对存档快照 | 已就位（25/25） |
 | 基准 | npm run test:bench：scanAll / renderRulesBlock / attachedRules / read_rules 三次取中位数 | 已就位（8/8） |
 | 真实组合（非单测） | tests/e2e 起真实无头会话；tests/entry.spec.ts 与 tests/client.spec.tsx 是手搭 fake ctx | 已就位（fake ctx 那部分官方判为不够，由 e2e 与集成层补位） |
+| 无 key 车道接入 CI | `.github/workflows/ci.yml` 在 `ubuntu-latest` 上跑 `check`、`test:coverage`、`test:e2e`、`test:snapshot`、`test:integration`，全程零凭据；带 key 的车道不进 CI | 已就位 |
 | 发布产物路径 | 与「真实组合」是同一层，单列出来是因为官方对它另有一条要求：`node -e "import('./lib/index.js')"` 在 plain node 下成功并导出 name / inject / Config / apply 四个符号，没有 tsx 或构建器参与；各层测试本身仍导入源码，因为要断言的是模块内部行为 | 已就位 |
 
 剩下的差距（发布产物入口已在 2026-11-27 补上：`node -e "import('./lib/index.js')"` 在 plain node 下成功并导出 name / inject / Config / apply 四个符号）：

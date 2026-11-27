@@ -1,0 +1,40 @@
+# Two rules from the official testing policy drive this file: a test that does not
+# call the model needs no API key and therefore belongs in CI rather than behind a
+# key gate (docs/postmortem/0001), and the layers that do need a credential must
+# skip themselves instead of failing (docs/testing.md). Every step below is keyless;
+# the live-model lane is deliberately absent.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # `dsh plugin add` in the smoke lane shells out to pnpm, which the runner
+      # image does not ship.
+      - run: npm i -g pnpm@10
+      - run: npm ci
+      - run: npm run check
+      - run: npm run test:coverage
+      - run: npm run test:snapshot
+      - run: npm run test:integration
+      # The smoke lane drives its own DSH process. The published CLI carries the
+      # headless template (verified: it boots and composes this plugin), so no
+      # desktop install is needed; keep the range inside engines.dsh.
+      - run: npm install --prefix "$RUNNER_TEMP/dsh" --no-audit --no-fund @deepseek-ai/dsh@0.2
+      - run: npm run test:e2e
+        env:
+          DSH_CLI: ${{ runner.temp }}/dsh/node_modules/.bin/dsh
+        timeout-minutes: 15

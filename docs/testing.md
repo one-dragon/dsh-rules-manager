@@ -56,6 +56,16 @@
 | 真浏览器快照 | `npm run test:browser` | 否（无浏览器时打印 SKIPPED 并 exit 0） | tests/browser/panel.browser.mts 与 panel.snapshot.html | 把真实 lib/client.js（连同 react UMD 与 jsx 运行时模块）伺服给无头 Edge/Chrome，渲染面板并断言零窗口错误、四个插槽注入、层级与停用原因、`attached` 标记、点击开关恰好一条写请求、同一份输入两次渲染逐字节相同，最后与存档快照逐字节比对；`DSH_BROWSER_UPDATE=1` 才改写 |
 | 基准 | `npm run test:bench` | 否 | tests/bench/bench.mts | 对真实模块计时：scanAll（约 400 文件）、renderRulesBlock（约 400 规则）、attachedRules（200×200）、read_rules；取三次中位数与宽松上限比，只作回归护栏，不是性能主张 |
 
+## 无 key 的车道进 CI
+
+官方第 4 条规矩说「不调用模型的测试属于 CI，而不是待在 key 门槛后面」，所以 `.github/workflows/ci.yml` 把这些层接在 `ubuntu-latest` 上，按顺序跑：`npm i -g pnpm@10` → `npm ci` → `npm run check` → `npm run test:coverage` → `npm run test:snapshot` → `npm run test:integration` → 装一份 npm 发布的 `@deepseek-ai/dsh@0.2` 到 `$RUNNER_TEMP/dsh` → `npm run test:e2e`（`DSH_CLI` 指向那份 `.bin/dsh`，超时 15 分钟）。装 pnpm 是因为 `dsh plugin add` 会调它，而 runner 镜像不自带；装发布的 CLI 是因为它的 `headless` 模板自带，不需要桌面端安装（2026-11-27 实测：发布包 `dsh --profile p1 --from-default-profile headless --dump-config` rc=0，`bundles` 里能看到本插件）。工作流里没有任何凭据字段，`DEEPSEEK_API_KEY` 与 `secrets.` 都不出现。
+
+带 key 的 `test:e2e:live` 刻意不进 CI —— 官方要求这类车道在没有凭据时自跳过，本仓库的做法是把凭据留在本机。`test:browser` 需要无头 Edge/Chrome（`ubuntu-latest` 上两者都没有，跑起来只会打印 SKIPPED，等于没跑），`test:bench` 是宽松上限的回归护栏；两层都保留在本机执行。
+
+CI 里 `test:e2e` 的启动器解析与本地一致：`DSH_CLI` 优先，否则要 `DSH_NODE_EXECUTABLE` + `DSH_INSTALL_DIR`；两个来源都不可用时它打印 SKIPPED 并以 0 退出，所以这一步最坏情况也不会把 CI 变红。
+
+仓库的 tracker 约定同样接线到位：`docs/work/file-scoped-attachment/issues/01-file-scoped-attachment.md` 是这个 feature 的第一张 implementation ticket（头部有 `Status:` 行），`scripts/delivery-check.mts` 的必需文件清单同时覆盖 spec 与 ticket。
+
 诚实备注：tests/entry.spec.ts 与 tests/client.spec.tsx 用的是手搭 fake ctx（`apply(ctx as never)`），正是官方四条规矩第 2 条判定为「不够」的形态；补位的是「真实项目集成」这层与真机冒烟：前者走真实扫描链路，后者由真实 Loader 启动真实 profile。
 
 ## 怎么复现一次真机冒烟
@@ -79,4 +89,5 @@
 2. 状态码不再是 200 时：URL 失效就换成新路径并保留旧路径一行备注；只是抓取失败就写 FAILED 并保留 URL，同时把依赖该文档的正文论断降级为 UNVERIFIED。
 3. 逐字核对「官方定的四条规矩」的四句引文与行号；官方重排段落时行号会变，引文本身不变。
 4. 若官方新增了测试分层或修改 with-key 政策，同步更新「本插件的测试地图」的层数与每层需不需要 key 的说法。
-5. 单元层的文件数与用例数会变：`npm test` 报出的 Test Files 要同步到本文件第 45 行附近的表格行与 README 的 Development 块，`docs/plugin-testing.md` 第五节那张就位表也引用同一组数字。
+5. 官方第 4 条规矩点名的层若有增减，同步 `.github/workflows/ci.yml` 的步骤列表与本节上面的说明。
+6. 单元层的文件数与用例数会变：`npm test` 报出的 Test Files 要同步到本文件第 45 行附近的表格行与 README 的 Development 块，`docs/plugin-testing.md` 第五节那张就位表也引用同一组数字。

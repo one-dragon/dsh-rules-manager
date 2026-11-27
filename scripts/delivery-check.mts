@@ -33,7 +33,9 @@ const REQUIRED = [
   'tests/selection.spec.ts', 'tests/workspace.spec.ts', 'tests/routes.spec.ts',
   'tests/gaps.spec.ts', 'tests/panel-interactions.spec.tsx',
   'tests/integration/real-project.mts',
-  'docs/testing.md', 'docs/plugin-testing.md',
+  'docs/testing.md', 'docs/plugin-testing.md', 'docs/DETAIL.md', 'docs/DETAIL.zh.md', 'docs/preview.svg',
+  'docs/work/file-scoped-attachment/spec.md', 'docs/work/file-scoped-attachment/issues/01-file-scoped-attachment.md',
+  '.github/workflows/ci.yml',
   'tests/e2e/smoke.mts', 'tests/e2e/fixture/.codebuddy/rules/resident.mdc',
   'tests/bench/bench.mts', 'tests/e2e/live-model.mts',
   'tests/snapshot/session.snapshot.mts', 'tests/snapshot/session.snapshot.json',
@@ -99,6 +101,7 @@ check('README 说明与 AGENTS.md 的关系', en.includes('dsh-agent-instruction
 check('README 指向测试深度文档', en.includes('docs/plugin-testing.md') && zh.includes('docs/plugin-testing.md'))
 check('README 记录 test:e2e 入口', en.includes('npm run test:e2e') && zh.includes('npm run test:e2e'))
 check('README 说明 Windows npm 坑', en.includes('exit 126') || en.includes('npm-cli.js'))
+check('README 展示面板截图（与 locale 详情页同图）', en.includes('docs/preview.svg') && zh.includes('docs/preview.svg'))
 check('README 提到 safeSlice 上游错误', en.includes('CodeBuddy') && en.includes('safeSlice'))
 check('中文 README 与英文结构对齐', (zh.match(/^## /gm) || []).length === (en.match(/^## /gm) || []).length,
   `en=${(en.match(/^## /gm) || []).length} zh=${(zh.match(/^## /gm) || []).length}`)
@@ -109,8 +112,19 @@ const deepDoc = fs.readFileSync(path.join(ROOT, 'docs/plugin-testing.md'), 'utf8
 const mapDoc = fs.readFileSync(path.join(ROOT, 'docs/testing.md'), 'utf8')
 check('测试深度文档写明官方七层与八行就位表的关系', deepDoc.includes('官方七层') && deepDoc.includes('八行'))
 check('测试深度文档含故意注入回归看红的清单', deepDoc.includes('6.3 故意注入回归看红的实测清单'))
+/** 读一个文件的非空行；详情页规范要求恰好一行图片。 */
+function deepDocLines(rel: string): string[] {
+  return fs.readFileSync(path.join(ROOT, rel), 'utf8').split('\n').filter((l) => l.trim().length > 0)
+}
 const specCount = fs.readdirSync(path.join(ROOT, 'tests')).filter((f) => f.endsWith('.spec.ts') || f.endsWith('.spec.tsx')).length
 check(`测试地图的单元层写当前 spec 文件数（${specCount}）`, mapDoc.includes(`${specCount} 个 \`*.spec.ts\``))
+// The official policy puts every keyless layer in CI; a repository that ships such
+// layers without a workflow is describing a gate nobody runs.
+const ciText = fs.existsSync(path.join(ROOT, '.github/workflows/ci.yml')) ? fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8') : ''
+check('CI 工作流跑 npm run check', ciText.includes('npm run check'))
+check('CI 工作流跑覆盖率门禁', ciText.includes('npm run test:coverage'))
+check('CI 工作流不消费凭据', !/DEEPSEEK_API_KEY|secrets\./.test(ciText))
+check('详情页文档各恰好一行图片', ['docs/DETAIL.md', 'docs/DETAIL.zh.md'].every((f) => (deepDocLines(f).filter((l) => l.includes('![')).length) === 1))
 
 console.log('\n════ 5. locale 元数据 ════')
 // The key set and the values are checked here as well as in the client tests:

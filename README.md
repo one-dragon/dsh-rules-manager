@@ -5,10 +5,12 @@
 English | [中文](README.zh-CN.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![DSH](https://img.shields.io/badge/DSH-0.2.2--rc.3-4D6BFE)](package.json)
+[![DSH](https://img.shields.io/badge/DSH-0.2.2--rc.5-4D6BFE)](package.json)
 [![dsh-plugin](https://img.shields.io/badge/dsh--plugin-yes-2496ED)](package.json)
 
 ---
+
+![The rules panel: sources on the left, each rule's tier and state on the right](docs/preview.svg)
 
 ## What it does
 
@@ -271,7 +273,7 @@ npm run test                 # vitest, the whole suite (25 spec files)
 npm run test:coverage        # the same suite with the per-file 100% coverage gate
 npm run test:integration      # real project, real rule files
 npm run test:e2e             # real DSH session + local model stub, no credentials
-npm run test:e2e:live        # real model; needs DEEPSEEK_API_KEY, skips without it
+npm run test:e2e:live        # real model; needs DEEPSEEK_API_KEY (or LIVE_KEY_ENV), skips without it
 npm run test:snapshot        # recorded session transcript, compared byte for byte
 npm run test:browser         # real headless browser renders the panel, compared byte for byte
 npm run test:bench           # scan, render, attach and read_rules timings
@@ -298,9 +300,9 @@ dsh --profile scratch --dump-config          # exit 0, entry present in the tree
 dsh --profile scratch --dump-config-schema   # Config resolved, defaults correct
 ```
 
-`--dump-config` composed our `cordis.patch.yml` layer into the tree, and `--dump-config-schema` generated a JSON Schema from our schemastery `Config` with every documented default (`8000`, `6000`, `12000`, `60000`) intact.
+`--dump-config` composed our `cordis.patch.yml` layer into the tree, and `--dump-config-schema` generated a JSON Schema from our schemastery `Config` with every documented default (`8000`, `6000`, `12000`, `60000`, `6`) intact.
 
-Testing depth - what each layer proves, what the official policy requires, and how 19 real third-party DSH plugins test themselves - is written up in [docs/plugin-testing.md](docs/plugin-testing.md). This repository own layer-by-layer status is a table in that file.
+Testing depth - what each layer proves, what the official policy requires, and how 19 real third-party DSH plugins test themselves - is written up in [docs/plugin-testing.md](docs/plugin-testing.md). This repository's own layer-by-layer status is a table in that file.
 
 ## Design and evidence
 

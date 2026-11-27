@@ -17,6 +17,8 @@ export default defineConfig({
       // file at 100%. Branch arms that no input can reach on these platforms
       // were audited one by one; the residue is reported, not enforced, and
       // each remaining arm is listed in docs/plugin-testing.md.
+      // https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/docs/testing.md
+      // (fetched 2026-11-27, HTTP 200; the sentence sits on the coverage-gate line.)
       thresholds: { perFile: true, statements: 100, lines: 100, functions: 100 },
     },
   },

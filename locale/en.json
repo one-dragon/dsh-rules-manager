@@ -1,6 +1,7 @@
 {
   "meta": {
     "title": "Rules",
-    "description": "Load and manage cross-agent rule files as always-on, on-demand, or disabled."
+    "description": "Load and manage cross-agent rule files as always-on, on-demand, or disabled.",
+    "detail": "docs/DETAIL.md"
   }
 }

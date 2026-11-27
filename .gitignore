@@ -5,6 +5,9 @@ node_modules/
 # dsh-superagent-windows/.gitignore.
 .artifacts/
 coverage/
+# Raw coverage JSON written by ad-hoc probes. It embeds absolute machine paths,
+# so it is ignored and kept out of the index.
+.covtmp*/
 *.log
 # Local scratch: probe scripts and inspection dumps live outside the repo
 # (they carry machine-specific paths), but keep them out if one is written here.
