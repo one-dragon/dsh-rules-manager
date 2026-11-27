@@ -295,6 +295,8 @@ dsh --profile scratch --dump-config-schema   # Config resolved, defaults correct
 
 `--dump-config` composed our `cordis.patch.yml` layer into the tree, and `--dump-config-schema` generated a JSON Schema from our schemastery `Config` with every documented default (`8000`, `6000`, `12000`, `60000`) intact.
 
+Testing depth - what each layer proves, what the official policy requires, and how 19 real third-party DSH plugins test themselves - is written up in [docs/plugin-testing.md](docs/plugin-testing.md). This repository own layer-by-layer status is a table in that file.
+
 ## Design and evidence
 
 Every behavioral claim in this plugin traces to a source that was read or a test that was run. The evidence lives beside the code and in the test suite:

@@ -284,6 +284,8 @@ dsh --profile scratch --dump-config-schema   # Config 被解析，默认值正�
 
 `--dump-config` 把我们的 `cordis.patch.yml` 层组合进了树；`--dump-config-schema` 从我们的 schemastery `Config` 生成了 JSON Schema，**所有文档中的默认值**（`8000`、`6000`、`12000`、`60000`）都正确。
 
+测试深度 —— 每一层能证明什么、官方政策要求什么、19 个真实第三方 DSH 插件怎么测自己 —— 写在 [docs/plugin-testing.md](docs/plugin-testing.md) 里，本仓库逐层就位情况是该文件里的一张表。
+
 ## 设计与依据
 
 本插件的每一条行为主张都可追溯到**读过的源码**或**跑过的测试**。证据就在代码旁边与测试套件里：

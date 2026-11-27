@@ -32,6 +32,7 @@ const REQUIRED = [
   'tests/attach.spec.ts', 'tests/cost.spec.ts', 'tests/panel-ui.spec.tsx', 'tests/rules-sources.spec.ts',
   'tests/selection.spec.ts', 'tests/workspace.spec.ts',
   'tests/integration/real-project.mts',
+  'docs/testing.md', 'docs/plugin-testing.md',
   'tests/e2e/smoke.mts', 'tests/e2e/fixture/.codebuddy/rules/resident.mdc',
   'tests/e2e/fixture/.codebuddy/rules/ondemand.mdc', 'tests/e2e/fixture/src/app.ts',
 ]
@@ -79,6 +80,7 @@ check('README 载明四级键解析', en.includes('case-insensitive') && en.incl
 check('README 载明只读承诺', en.includes('Read-only') || en.includes('read-only'))
 check('README 有 Known limitations 段', en.includes('## Known limitations'))
 check('README 说明与 AGENTS.md 的关系', en.includes('dsh-agent-instructions'))
+check('README 指向测试深度文档', en.includes('docs/plugin-testing.md') && zh.includes('docs/plugin-testing.md'))
 check('README 记录 test:e2e 入口', en.includes('npm run test:e2e') && zh.includes('npm run test:e2e'))
 check('README 说明 Windows npm 坑', en.includes('exit 126') || en.includes('npm-cli.js'))
 check('README 提到 safeSlice 上游错误', en.includes('CodeBuddy') && en.includes('safeSlice'))
