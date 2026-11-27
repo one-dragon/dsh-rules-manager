@@ -161,3 +161,61 @@ describe('safeSlice', () => {
     expect(safeSlice('abcdef', 3)).toBe('abc')
   })
 })
+
+describe('truncation never leaves half a surrogate pair', () => {
+  // Both budgets cut by character count, so a boundary that lands inside a
+  // surrogate pair would end the kept text with a lone high surrogate - which
+  // renders as a replacement character. Sweep every boundary of several bodies
+  // rather than trusting one example.
+  const EMOJI = '\u{1F600}'
+  const endsInHighSurrogate = (text: string): boolean => {
+    if (text.length === 0) return false
+    const last = text.charCodeAt(text.length - 1)
+    return last >= 0xd800 && last <= 0xdbff
+  }
+  const perItemMark = (cap: number): string => '\n[... rule truncated at ' + String(cap) + ' chars]'
+  const OUTPUT_MARK = '\n[... rule content truncated due to read_rules output budget]'
+
+  it('applyBudget drops the half pair at every cut position', () => {
+    let cuts = 0
+    for (let lead = 0; lead <= 2; lead++) {
+      const body = 'a'.repeat(lead) + EMOJI + 'b'.repeat(6)
+      for (let cap = 1; cap < body.length; cap++) {
+        const kept = applyBudget([{ key: 'k', content: body }], cap, 1000000).kept[0] ?? ''
+        const mark = perItemMark(cap)
+        const text = kept.endsWith(mark) ? kept.slice(0, kept.length - mark.length) : kept
+        expect(endsInHighSurrogate(text)).toBe(false)
+        if (body.length > cap) cuts++
+      }
+    }
+    expect(cuts).toBeGreaterThan(0)
+  })
+
+  it('applyBudget shortens the body when the cap splits a pair', () => {
+    // The high surrogate sits at index 3, so a cap of 4 cuts between the two
+    // halves: the kept text must be three characters, not four. Without the
+    // guard this is 'abc\uD83D' plus the marker.
+    const body = 'abc' + EMOJI + 'de'
+    const kept = applyBudget([{ key: 'k', content: body }], 4, 1000000).kept[0] ?? ''
+    expect(kept).toBe('abc' + perItemMark(4))
+  })
+
+  it('consumeOutputBudget drops the half pair at every cut position', () => {
+    let cuts = 0
+    for (let lead = 0; lead <= 2; lead++) {
+      const block = 'a'.repeat(lead) + EMOJI + 'b'.repeat(6)
+      for (let cap = 1; cap < block.length; cap++) {
+        const kept = consumeOutputBudget([block], cap).kept[0] ?? ''
+        const text = kept.endsWith(OUTPUT_MARK) ? kept.slice(0, kept.length - OUTPUT_MARK.length) : kept
+        expect(endsInHighSurrogate(text)).toBe(false)
+        if (block.length > cap) cuts++
+      }
+    }
+    expect(cuts).toBeGreaterThan(0)
+  })
+
+  it('consumeOutputBudget keeps a block that fits byte for byte', () => {
+    const block = 'abc' + EMOJI + 'de'
+    expect(consumeOutputBudget([block], block.length).kept[0]).toBe(block)
+  })
+})

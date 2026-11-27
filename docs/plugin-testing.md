@@ -116,10 +116,10 @@
 
 | 层 | 本仓库 | 状态 |
 | --- | --- | --- |
-| 单元 | 25 个 spec 文件 / 873 个用例（面板交互单独一个文件 60 例），skip 与 only 与 todo 命中 0 | 已就位 |
+| 单元 | 25 个 spec 文件 / 877 个用例（面板交互单独一个文件 60 例），skip 与 only 与 todo 命中 0 | 已就位 |
 | 覆盖率门禁 | npm run test:coverage：语句、行、函数按**每文件 100%** 强制（vitest.config.ts 的 thresholds.perFile）；`src/types.ts` 排除，因为它只声明类型与模块增强、运行时零字节。残留分支报告为 1404/1436（97.77%，32 处未覆盖），逐条定性见下 | 已就位 |
 | 真实项目集成 | npm run test:integration（真实项目 + 真实规则文件，无 key，未设置 DSH_RULES_PROJECT 时自跳过） | 已就位 |
-| 真机冒烟（零凭据） | npm run test:e2e：真 Loader 装配 + 本地 OpenAI 兼容 stub，断言只读 stub 记录的请求原文 | 已就位（23/23） |
+| 真机冒烟（零凭据） | npm run test:e2e：真 Loader 装配 + 本地 OpenAI 兼容 stub，断言只读 stub 记录的请求原文；超长规则那例把截断点顶进代理对中间，断言块里没有半个 emoji | 已就位（27/27） |
 | 真机冒烟（带 key 真模型） | npm run test:e2e:live：真模型跑一句可外部核验的任务，再解压会话持久化文件验证注入落地。已对本机自建网关（`LIVE_BASE_URL` + `LIVE_MODEL`，凭据走 `LIVE_KEY_ENV` 指定的变量名）实跑，14/14 通过；覆盖形态取自官方 packages/llm/llm-pi-ai/README.md 的 hand-declared gateway 示例 | 已就位 |
 | 录制会话快照 | npm run test:snapshot：录一次真机会话，比对注入正文与规范化 state.json；改一个字符即 exit 1 | 已就位（18/18） |
 | 真浏览器快照 | npm run test:browser：无头 Edge 伺服真实 lib/client.js 渲染面板，逐字节比对存档快照 | 已就位（25/25） |
@@ -132,7 +132,7 @@
 
 1. **带 key 的真模型 smoke 只跑过自建网关，没跑过官方路由。** 脚本两种都能跑（不设 `LIVE_BASE_URL` 即用 profile 默认路由），本机没有官方路由的凭据。
 2. **分支未达 100% 的 32 处已逐条定性，结论是「不可达」而不是「还缺用例」。分布（覆盖率汇总实测）：src/index.ts 17、src/scan.ts 6、src/parse.ts 6、src/globs.ts 1、src/token-count.ts 1、src/client/index.tsx 1。** 三类：需要打桩才能触发的库内异常（picomatch 的编译抛错、matcher 抛错）；构造上不可能取到 undefined 的兜底（`lines[i] ?? ''` 这类下标恒在界内的 `??`）；以及公开面走不到的守卫（重复根去重、`Array.isArray` 参数守卫）。其中两处纯防御臂已按覆盖率证据删除：`src/globs.ts` 里实测从不触发的 `catch`，与 `src/tool-read-rules.ts` 里被 `defineTool` 参数校验挡在门外的非数组分支。
-3. **故意「注入回归看红」已固化成清单，见 6.3。** 快照层、真浏览器快照层与覆盖率门禁各做了一次当场变异实验，观察到的红色输出逐字记在该节；三层都已还原，并核对文件 revision 与实验前逐字相同。
+3. **故意「注入回归看红」已固化成清单，见 6.3。** 录制快照层、真浏览器快照层、覆盖率门禁与截断护栏各做了一次当场变异实验，另加一次诊断码改名的反向验证，观察到的红色输出逐字记在该节；每一处都已还原，并核对文件 revision 与实验前逐字相同。
 
 ## 六、证据与复现
 
@@ -160,16 +160,17 @@
 
 ### 6.3 故意注入回归看红的实测清单
 
-官方第 40 行要求护栏必须能红（A guard only guards if the regression fails it）。下面四次实验都是 2026-11-27 当场做的：先改一处，看它变红，再还原，并核对文件 revision 与实验前逐字相同。
+官方第 40 行要求护栏必须能红（A guard only guards if the regression fails it）。下面五次实验都是 2026-11-27 当场做的：先改一处，看它变红，再还原，并核对文件 revision 与实验前逐字相同。
 
 | 层 | 改了什么 | 观察到的红色 | 还原 |
 | --- | --- | --- | --- |
 | 录制会话快照 | 把 `tests/snapshot/session.snapshot.json` 里 `modelVisibleRulesText` 的首个 `number` 改成 `NUMBER` | `node --experimental-strip-types tests/snapshot/session.snapshot.mts` 报 checks 18 项 / 通过 17 项、exit 1，并打印第一处不同的字符偏移与两侧上下文 | 18/18、exit 0，revision 与实验前相同（6eba49a6 开头） |
 | 真浏览器快照 | 把 `tests/browser/panel.snapshot.html` 注释里的 `first` 改成 `FIRST` | `node --experimental-strip-types tests/browser/panel.browser.mts` 报 checks 25 项 / failures 1：`FAIL the rendered panel matches the stored snapshot byte for byte -- first difference at byte 275 (file line 5)` | 25/25、failures 0，revision 与实验前相同（ed30c8f6 开头） |
-| 诊断码改名 | 把 `src/attach.ts` 里的 `attach.slow` 改成 `attach.slowRENAMED` | `npx vitest run` 报 1 failed / 24 passed 文件、1 failed / 872 passed 用例，输出 `FAIL tests/attach.spec.ts > attachedRules - self-check budget > warns and skips a rule whose matchers exceed the self-check budget` 与 `expected 'attach.slowRENAMED' to be 'attach.slow'` | 改回 `attach.slow` 后回到 25 个文件 / 873 个用例全过；`git diff --stat -- src/attach.ts` 为空，即与提交版本逐字相同 |
-| 覆盖率门禁 | 在 `vitest.config.ts` 的 thresholds 里临时加 `branches: 100` | 六条 ERROR 同时出现：`src/client/index.tsx` 99.67、`src/globs.ts` 95.65、`src/index.ts` 92.51、`src/parse.ts` 96.1、`src/scan.ts` 95.65、`src/token-count.ts` 97.36 | 去掉该阈值后回到「25 个文件 / 873 个用例全过、残留分支 1404/1436」 |
+| 诊断码改名 | 把 `src/attach.ts` 里的 `attach.slow` 改成 `attach.slowRENAMED` | `npx vitest run` 报 1 failed / 24 passed 文件、1 failed / 872 passed 用例，输出 `FAIL tests/attach.spec.ts > attachedRules - self-check budget > warns and skips a rule whose matchers exceed the self-check budget` 与 `expected 'attach.slowRENAMED' to be 'attach.slow'` | 改回 `attach.slow` 后回到 25 个文件全过（当时基线 873 个用例；同一句断言在新增四例后的 877 基线上仍然咬住）| `git diff --stat -- src/attach.ts` 为空，即与提交版本逐字相同 |
+| 覆盖率门禁 | 在 `vitest.config.ts` 的 thresholds 里临时加 `branches: 100` | 六条 ERROR 同时出现：`src/client/index.tsx` 99.67、`src/globs.ts` 95.65、`src/index.ts` 92.51、`src/parse.ts` 96.1、`src/scan.ts` 95.65、`src/token-count.ts` 97.36 | 去掉该阈值后回到「25 个文件 / 877 个用例全过、残留分支 1404/1436」 |
+| 截断护栏（safeSlice） | 把 `src/budget.ts` 的两处截断点从 `safeSlice(...)` 改回裸 `slice` | `npx vitest run` 报 1 failed / 24 passed 文件、2 failed / 875 passed 用例：`applyBudget drops the half pair at every cut position`（`expected true to be false`）与 `applyBudget shortens the body when the cap splits a pair`（期望 `abc`、实得 `abc\uFFFD`）。只把 `consumeOutputBudget` 那一处改回裸 `slice` 时收窄为 1 failed / 876 passed。`scripts/delivery-check.mts` 同时报 `BAD [文本检查] 两处截断都走 safeSlice` 与「终检：1 处问题」 | 两处都改回 `safeSlice` 后 25 个文件 / 877 个用例全过，revision 与实验前相同（83827446 开头） |
 
-这四次实验同时是「哪些层真的会拦人」的证据：快照与浏览器两层拦的是渲染与注入正文的逐字节漂移，覆盖率门禁拦的是「新增分支没被任何输入走到」。真机冒烟那一层的对照断言（禁用组必须不含 `<rules>`）在 `tests/e2e/smoke.mts` 里常驻，不需要临时改文件就能复核。
+这五次实验同时是「哪些层真的会拦人」的证据：快照与浏览器两层拦的是渲染与注入正文的逐字节漂移，覆盖率门禁拦的是「新增分支没被任何输入走到」，截断护栏拦的是「保留正文末尾剩下半个代理对」。真机冒烟那一层不靠临时改文件复核：它的对照断言（禁用组必须不含 `<rules>`）与代理对断言都常驻在 `tests/e2e/smoke.mts` 里。超长规则那例的切点位置也有直接证据 —— 在 bundle 的截断点临时插一段标签打印该处码位，真机读回 `Bd83d A78 H7999 E7999`，即上限正好落在高位 0xd83d 与低位 0xde00 之间，而注入块里既没有完整 emoji、也没有孤立高代理。
 
 ## 七、维护提醒
 

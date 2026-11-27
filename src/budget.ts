@@ -51,7 +51,7 @@ export function applyBudget(
   for (const item of items) {
     let content = item.content
     if (content.length > perItem) {
-      content = content.slice(0, perItem) + truncationMarker(perItem)
+      content = safeSlice(content, perItem) + truncationMarker(perItem)
       truncated.push(item.key)
     }
     if (used + content.length > total) {
@@ -90,7 +90,7 @@ export function consumeOutputBudget(
     const left = total - used
     if (left <= 0) return { kept, truncated: true }
     if (block.length > left) {
-      kept.push(`${block.slice(0, left)}\n[... rule content truncated due to read_rules output budget]`)
+      kept.push(`${safeSlice(block, left)}\n[... rule content truncated due to read_rules output budget]`)
       return { kept, truncated: true }
     }
     kept.push(block)

@@ -312,13 +312,13 @@ Every behavioral claim in this plugin traces to a source that was read or a test
 - The three-state derivation order — read from CodeBuddy's `parseRuleFile`
 - The 60000-character output budget and four-tier key resolution — read from CodeBuddy's `ReadRulesTool`
 - The ReDoS screen's thresholds — measured on picomatch 4.0.7 (`*a*a*a*…` exceeds five seconds at ten stars; `**` and brace patterns stay at 2–3 ms)
-- `safeSlice`'s surrogate guard — **CodeBuddy's own version is wrong**; it tests the low range and drops complete pairs. This plugin tests the high range. A test covers every cut position.
+- `safeSlice`'s surrogate guard — **CodeBuddy's own version is wrong**; it tests the low range and drops complete pairs. This plugin tests the high range, and both truncation sites call it (`applyBudget`'s per-rule cap and `consumeOutputBudget`'s read_rules total). A test sweeps every cut position of both.
 - `dsh.client.external` — left empty after checking ten installed client plugins: the closest comparable one (`@michengai/dsh-skills-manager`) declares the same three `inject` entries, no `external`, and requires only `react` and `@deepseek-ai/dsh-client-ui-primitives`, both platform baseline.
 - `MessageSourceMap` — declared by module augmentation, the same seam the host's own `dsh-agent-instructions` uses, instead of casting.
 - **Injection placement** — the rules block is folded *immediately after the claimed batch*, so the direct prompt precedes it and driver-appended runtime context follows it. That is the host's own convention, read from `dsh-agent-instructions/src/index.ts`; appending to the end would reverse it and would also inject into a first step that owns no request.
 - Panel styling — one injected `<style>` element using DSH's `--dsw-*` alias tokens, the approach the reference plugin uses. Each token carries a literal fallback, and a test asserts every one does.
 
-Six defects were found by running the code rather than reading it, and each has a regression test. They are listed in [CHANGELOG.md](CHANGELOG.md).
+Eight defects were found by running the code rather than reading it, and each has a regression test. They are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

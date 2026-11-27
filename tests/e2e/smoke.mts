@@ -269,11 +269,26 @@ async function runSession(l: Launcher, stub: Stub, runName: string, dir: string,
   return { status: r.status, signal: r.signal, timedOut: r.timedOut, stdout: r.stdout, stderr: err, ms }
 }
 
+/** The `<rules>` block as the model sees it: decoded message text, not the escaped JSON. */
 function rulesBlockOf(body: string): string {
-  const i = body.indexOf(RULES_OPEN)
-  const j = body.indexOf(RULES_CLOSE)
+  let text = body
+  try {
+    const parsed = JSON.parse(body) as { messages?: { content?: unknown }[] }
+    if (Array.isArray(parsed.messages)) {
+      text = parsed.messages.map((m) => {
+        const c = m.content
+        if (typeof c === 'string') return c
+        if (Array.isArray(c)) return c.map((part) => (typeof (part as { text?: unknown }).text === 'string' ? (part as { text: string }).text : '')).join('')
+        return ''
+      }).join(NL)
+    }
+  } catch {
+    // Not JSON: fall back to the raw body so a malformed request still reports something.
+  }
+  const i = text.indexOf(RULES_OPEN)
+  const j = text.indexOf(RULES_CLOSE)
   if (i < 0 || j < i) return ''
-  return body.slice(i, j + RULES_CLOSE.length)
+  return text.slice(i, j + RULES_CLOSE.length)
 }
 
 function reportRequests(label: string, entries: StubEntry[]): void {
@@ -394,16 +409,32 @@ async function main(): Promise<void> {
     check('没有任何规则文件的空项目：会话收尾（rc=0）', h3.status === 0, failureDetail(h3))
     check('没有任何规则文件的空项目：不出现 <rules>', h3Reqs.every((e) => e.body.indexOf(RULES_OPEN) < 0))
 
-    const longBody = 'LONG_HEAD_DELTA' + NL + 'L'.repeat(19900) + NL + 'LONG_TAIL_EPSILON' + NL
+    // The 8000th character of the rule body is the high half of an emoji, so the
+    // perRuleMax cut lands between the two halves. The body starts one character
+    // in (the blank line after the fence), so 7982 filler characters put the pair
+    // at body index 7999 and 8000 - exactly where the cap falls.
+    const EMOJI = '\u{1F600}'
+    const longBody = 'LONG_HEAD_DELTA' + NL + 'x'.repeat(7982) + EMOJI + 'y'.repeat(19900) + NL + 'LONG_TAIL_EPSILON' + NL
     const longRule = '---' + NL + 'description: LONG_RULE 超长正文' + NL + 'alwaysApply: true' + NL + '---' + NL + NL + longBody
     const longDir = makeRunDir(base, { name: 'long-rule', fromFixture: false, rules: [{ file: 'long.mdc', text: longRule }] })
     const h4 = await runSession(launcher, stub, 'long-rule', longDir, overlay, sessionEnv, 240000)
     const h4Reqs = stub.requests('long-rule')
     reportRequests('long-rule', h4Reqs)
     const h4Block = h4Reqs.length > 0 ? rulesBlockOf(h4Reqs[0]!.body) : ''
-    check('20000 字超长规则：头部进入注入块', h4Block.indexOf('LONG_HEAD_DELTA') >= 0)
-    check('20000 字超长规则：按 perRuleMax 截断并带标记', h4Block.indexOf(TRUNC_MARK) >= 0, 'len=' + String(h4Block.length))
+    const headAt = h4Block.indexOf('LONG_HEAD_DELTA')
+    const markAt = h4Block.indexOf(TRUNC_MARK)
+    check('20000 字超长规则：头部进入注入块', headAt >= 0)
+    check('20000 字超长规则：按 perRuleMax 截断并带标记', markAt >= 0, 'len=' + String(h4Block.length))
     check('20000 字超长规则：正文尾部没有整段泄漏', h4Block.indexOf('LONG_TAIL_EPSILON') < 0)
+    // The whole point of the case: the cap falls between the two halves of the
+    // emoji, and the guard drops the pair instead of leaving the high half behind.
+    // The kept body therefore ends on the filler and is one character short.
+    check('被劈开的代理对被整对丢弃：标记前一个字符不是半个 emoji', markAt >= 0 && (h4Block.charCodeAt(markAt - 1) < 0xd800 || h4Block.charCodeAt(markAt - 1) > 0xdfff))
+    check('被劈开的代理对被整对丢弃：保留正文比上限少一个字符', headAt >= 0 && markAt - headAt - 1 === 7998, 'kept=' + String(markAt - headAt - 1))
+    check('被劈开的代理对没有以完整形态留在保留正文里', h4Block.slice(headAt, markAt).indexOf(EMOJI) < 0)
+    note('DIAG marker=' + JSON.stringify(h4Block.slice(markAt, markAt + 40)) + ' tail=' + JSON.stringify(h4Block.slice(Math.max(0, markAt - 8), markAt)) + ' keptExclNl=' + String(markAt - 2 - headAt) + ' emojiAt=' + String(h4Block.indexOf(EMOJI)) + ' head=' + JSON.stringify(h4Block.slice(headAt, headAt + 20)))
+    const loneHigh = Array.from(h4Block).some((ch) => { const cp = ch.codePointAt(0) ?? 0; return cp >= 0xd800 && cp <= 0xdbff })
+    check('注入块里没有孤立高代理', !loneHigh)
     check('超长规则会话收尾（rc=0）', h4.status === 0, failureDetail(h4))
   } finally {
     if (stub !== null) await stub.close()

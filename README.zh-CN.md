@@ -301,13 +301,13 @@ dsh --profile scratch --dump-config-schema   # Config 被解析，默认值正�
 - 三态推导顺序 —— 读自 CodeBuddy 的 `parseRuleFile`
 - 60000 字符输出预算与四级键解析 —— 读自 CodeBuddy 的 `ReadRulesTool`
 - ReDoS 预筛阈值 —— 在 picomatch 4.0.7 上实测（`*a*a*a*…` 十星超 5 秒；`**` 与花括号模式稳定在 2–3 ms）
-- `safeSlice` 的代理对保护 —— **CodeBuddy 自己的版本是错的**，它判断低代理区间，会丢掉完整的对。本插件判断高代理区间，并有覆盖每个截断位置的测试。
+- `safeSlice` 的代理对保护 —— **CodeBuddy 自己的版本是错的**，它判断低代理区间，会丢掉完整的对。本插件判断高代理区间，并且**两处截断都调用它**（`applyBudget` 的单条上限与 `consumeOutputBudget` 的 read_rules 总量），测试穷举两者的每个截断位置。
 - `dsh.client.external` —— 核对 10 个已安装客户端插件后留空：最接近的 `@michengai/dsh-skills-manager` 声明了**相同的三项 `inject`**、`external` 为空，且只 require `react` 与 `@deepseek-ai/dsh-client-ui-primitives`，两者都属平台 baseline。
 - `MessageSourceMap` —— 用模块增强声明（宿主自己的 `dsh-agent-instructions` 用的同一处 seam），而不是强制类型转换。
 - **注入位置** —— 规则块折叠在**已认领批次之后**，使直接提示在其前、driver 追加的运行时上下文在其后。这是宿主自己的约定（读自 `dsh-agent-instructions/src/index.ts`）；追加到末尾会把顺序反过来，并且会往一个本不拥有请求的首步里注入。
 - 面板样式 —— 注入一个 `<style>` 元素，使用 DSH 的 `--dsw-*` 别名 token（参考实现用的就是这套）。每个 token 都带字面 fallback，并有测试断言这一点。
 
-**六个缺陷是靠跑代码（而非读代码）发现的**，每个都有回归测试，列在 [CHANGELOG.md](CHANGELOG.md)。
+**八个缺陷是靠跑代码（而非读代码）发现的**，每个都有回归测试，列在 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可证
 

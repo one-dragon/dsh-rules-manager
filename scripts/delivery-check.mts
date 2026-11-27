@@ -541,6 +541,16 @@ console.log('\n════ 6d. 面板数据层契约（task-11 的回归）═�
     /export function truncationMarker/.test(layout)
     && !/rule truncated at \$\{/.test(renderSrc)
     && !/rule truncated at \$\{/.test(fs.readFileSync(path.join(ROOT, 'src/budget.ts'), 'utf8')))
+  // Both truncation sites must cut through the surrogate guard. A plain `slice`
+  // at either one can end the kept text mid-pair, which renders as a replacement
+  // character in the prompt; the tests sweep every cut position.
+  const budgetSrc = fs.readFileSync(path.join(ROOT, 'src/budget.ts'), 'utf8')
+  check('[文本检查] 两处截断都走 safeSlice',
+    /export function safeSlice/.test(budgetSrc)
+    && /content = safeSlice\(content, perItem\)/.test(budgetSrc)
+    && /safeSlice\(block, left\)/.test(budgetSrc)
+    && !/content\.slice\(0, perItem\)/.test(budgetSrc)
+    && !/block\.slice\(0, left\)/.test(budgetSrc))
   // The scan pipeline was assembled twice, once per caller, and the two copies
   // differed only in variable names.
   check('[文本检查] 扫描结果只在一处组装成条目',

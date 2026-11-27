@@ -248,9 +248,3 @@ export interface Diagnostic {
    */
   readonly path?: string
 }
-
-/** Result of parsing one file. */
-export interface ParseResult {
-  readonly rule: Rule | null
-  readonly diagnostics: readonly Diagnostic[]
-}

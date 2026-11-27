@@ -3,8 +3,11 @@
  *
  * The five-part shape is CodeBuddy's (§4.2): always-on user rules, always-on
  * project rules, requestable project rules, memories, requestable user rules.
- * Only requestable rules expose a path and description; their bodies load
- * through the `read_rules` tool, which is what makes on-demand rules cheap.
+ * The memories segment is deliberately not rendered: memory files are out of
+ * scope for this plugin (README, "What is deliberately not read"), so the
+ * block carries four parts. Only requestable rules expose a path and
+ * description; their bodies load through the `read_rules` tool, which is what
+ * makes on-demand rules cheap.
  */
 import { applyBudget, formatOmittedLine, PER_RULE_MAX, PROJECT_RULES_TOTAL_MAX, USER_RULES_TOTAL_MAX } from './budget.ts'
 import { attachedNow, catalogLine, NO_ATTACHED, requestableSection } from './rule-layout.ts'
@@ -19,8 +22,6 @@ export interface RenderOptions {
   readonly userRulesTotal?: number
   /** Total cap for project-scope always-on rules. */
   readonly projectRulesTotal?: number
-  /** Include the `memories` section; currently always false. */
-  readonly includeMemories?: boolean
   /**
    * Paths of requestable rules that file touches have made resident.
    *
