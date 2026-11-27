@@ -42,7 +42,7 @@
 
 ## 本插件的测试地图
 
-八层，命令全部来自 package.json 的 scripts；单元层的 include 与覆盖率阈值来自 vitest.config.ts。
+九层，命令全部来自 package.json 的 scripts；单元层的 include 与覆盖率阈值来自 vitest.config.ts。
 
 | 层 | 命令 | 需要 API key | 覆盖的测试 | 断言什么 |
 | --- | --- | --- | --- | --- |
@@ -54,6 +54,7 @@
 | 指向自建网关 | 同上，加 `LIVE_BASE_URL` 与 `LIVE_MODEL` | 是（`LIVE_KEY_ENV` 指定凭据变量名，默认 `DEEPSEEK_API_KEY`） | 同上 | 设置 `LIVE_BASE_URL` 后本层写一份 `--patch` overlay，把 `llm-pi-ai` 的 provider 字典与 `agent-default-model` 两行整体覆盖成自建网关（形态取自官方 `packages/llm/llm-pi-ai/README.md` 的 hand-declared gateway 示例），因此请求不会落到默认的官方路由上。只设 `LIVE_BASE_URL` 而不设 `LIVE_MODEL` 会打印 SKIPPED，避免把请求打到一个未指明的模型上 |
 | 录制会话快照 | `npm run test:snapshot` | 否 | tests/snapshot/session.snapshot.mts 与 session.snapshot.json | 用零凭据 stub 路线录一次真机会话，把注入的 rules-context 正文与规范化后的 state.json 存成录制；默认逐字节比对，第一处不同会打印字符偏移与两侧上下文；`DSH_SNAPSHOT_UPDATE=1` 才改写录制 |
 | 真浏览器快照 | `npm run test:browser` | 否（无浏览器时打印 SKIPPED 并 exit 0） | tests/browser/panel.browser.mts 与 panel.snapshot.html | 把真实 lib/client.js（连同 react UMD 与 jsx 运行时模块）伺服给无头 Edge/Chrome，渲染面板并断言零窗口错误、注入的四条插槽名与顺序（门控后仍是四条）、层级与停用原因、`attached` 标记、三态入口控件按 `aria-pressed` 表达选中、点击开关与两次入口点击共三条写请求（最后一条是 `setEntry`）、同一份输入两次渲染逐字节相同；共六份快照（初次渲染、Global 页签、eta 开关、设置页入口、侧边栏入口、空工作区变体），最后与存档快照逐字节比对；`DSH_BROWSER_UPDATE=1` 才改写 |
+| README 截图 | `npm run panel:shot` | 否（无浏览器时打印 SKIPPED 并 exit 0） | scripts/panel-shot.mts 与 docs/panel.png / docs/panel-dark.png | 把构建好的 lib/client.js（连同 react UMD 与 jsx 运行时）伺服给无头 Edge/Chrome，用 14 条夹具规则与假宿主渲染真面板，再用 CDP 的 `Page.captureScreenshot` 截浅色与深色两张图；界面、文案与 `--dsw-*` 主题 token 都取自随包发布的那一份（token 值读自已安装的 DSH 构建），规则数据是夹具，全程不读写任何规则文件。它只出图、不断言渲染，快照断言仍由上一层负责 |
 | 基准 | `npm run test:bench` | 否 | tests/bench/bench.mts | 对真实模块计时：scanAll（约 400 文件）、renderRulesBlock（约 400 规则）、attachedRules（200×200）、read_rules；取三次中位数与宽松上限比，只作回归护栏，不是性能主张 |
 
 ## 无 key 的车道进 CI

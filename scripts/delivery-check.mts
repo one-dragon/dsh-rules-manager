@@ -33,7 +33,8 @@ const REQUIRED = [
   'tests/selection.spec.ts', 'tests/workspace.spec.ts', 'tests/routes.spec.ts',
   'tests/gaps.spec.ts', 'tests/panel-interactions.spec.tsx',
   'tests/integration/real-project.mts',
-  'docs/testing.md', 'docs/plugin-testing.md', 'docs/DETAIL.md', 'docs/DETAIL.zh.md', 'docs/preview.svg',
+  'scripts/panel-shot.mts',
+  'docs/testing.md', 'docs/plugin-testing.md', 'docs/DETAIL.md', 'docs/DETAIL.zh.md', 'docs/panel.png', 'docs/panel-dark.png',
   'docs/work/file-scoped-attachment/spec.md', 'docs/work/file-scoped-attachment/issues/01-file-scoped-attachment.md',
   '.github/workflows/ci.yml',
   'tests/e2e/smoke.mts', 'tests/e2e/fixture/.codebuddy/rules/resident.mdc',
@@ -78,6 +79,7 @@ check('scripts 含 test:e2e:live', typeof pj.scripts?.['test:e2e:live'] === 'str
 check('scripts 含 test:snapshot', typeof pj.scripts?.['test:snapshot'] === 'string')
 check('scripts 含 test:browser', typeof pj.scripts?.['test:browser'] === 'string')
 check('scripts 含 test:coverage', typeof pj.scripts?.['test:coverage'] === 'string')
+check('scripts 含 panel:shot（README 那张图是可复现的产物）', typeof pj.scripts?.['panel:shot'] === 'string')
 const liveLane = fs.readFileSync(path.join(ROOT, 'tests/e2e/live-model.mts'), 'utf8')
 check('真机层可指向自建网关', /LIVE_BASE_URL/.test(liveLane) && /LIVE_MODEL/.test(liveLane))
 check('engines.node 已声明', typeof pj.engines?.node === 'string')
@@ -101,7 +103,16 @@ check('README 说明与 AGENTS.md 的关系', en.includes('dsh-agent-instruction
 check('README 指向测试深度文档', en.includes('docs/plugin-testing.md') && zh.includes('docs/plugin-testing.md'))
 check('README 记录 test:e2e 入口', en.includes('npm run test:e2e') && zh.includes('npm run test:e2e'))
 check('README 说明 Windows npm 坑', en.includes('exit 126') || en.includes('npm-cli.js'))
-check('README 展示面板截图（与 locale 详情页同图）', en.includes('docs/preview.svg') && zh.includes('docs/preview.svg'))
+check('README 展示面板截图（与 locale 详情页同图）', en.includes('docs/panel.png') && zh.includes('docs/panel.png'))
+// 真截图不是示意图：它得存在、够大（880x1773 的界面在 160 KB 上下），而且得是 PNG——
+// 手画的 SVG 能通过存在性检查，通不过魔数。
+check('面板截图是真实 PNG 且大小合理', ['docs/panel.png', 'docs/panel-dark.png'].every((f) => {
+  const p = path.join(ROOT, f)
+  if (!fs.existsSync(p)) return false
+  const size = fs.statSync(p).size
+  const head = fs.readFileSync(p).subarray(0, 4)
+  return size > 20000 && size < 600000 && head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47
+}))
 check('README 提到 safeSlice 上游错误', en.includes('CodeBuddy') && en.includes('safeSlice'))
 check('中文 README 与英文结构对齐', (zh.match(/^## /gm) || []).length === (en.match(/^## /gm) || []).length,
   `en=${(en.match(/^## /gm) || []).length} zh=${(zh.match(/^## /gm) || []).length}`)
@@ -496,6 +507,19 @@ console.log('\n════ 6d. 面板数据层契约（task-11 的回归）═�
   check('[文本检查] 客户端按入口位置取舍插槽', /ENTRY_HIDES\[location\]/.test(clientSrc))
   check('[文本检查] 客户端读取入口路由', /resolveUrl\(ENTRY_ROUTE\)/.test(clientSrc))
   check('[文本检查] 客户端三态控件按 aria-pressed 表达选中', /aria-pressed=\{entryLocation === value\}/.test(clientSrc))
+  // The 2026-11-27 redesign: three bare words in a tray were the whole control,
+  // so nothing on screen said what they decided and the segments had no shape.
+  check('[文本检查] 入口控件在屏幕上写出组名', /dshrm-entry-l" aria-hidden="true"/.test(clientSrc))
+  check('[文本检查] 每个入口位置各有一个图形', /function EntryGlyph/.test(clientSrc) && /<EntryGlyph location=\{value\} \/>/.test(clientSrc))
+  {
+    const entryCss = fs.readFileSync(path.join(ROOT, 'src/client/styles.ts'), 'utf8')
+    check('[文本检查] 入口控件的组名与图标有样式',
+      ['dshrm-entry-l', 'dshrm-entry-seg', 'dshrm-entry-ico'].every((cls) => entryCss.includes('.' + cls)))
+    // In DSH the brand colour is the foreground colour, so a branded selected
+    // word carries no weight: selection has to be fill, weight and an edge.
+    check('[文本检查] 入口选中态不靠品牌色',
+      /\.dshrm-entry-btn\.on\{[^}]*label-primary/.test(entryCss) && !/\.dshrm-entry-btn\.on\{[^}]*brand-primary/.test(entryCss))
+  }
   check('RulesPayload 含 scannedAt', /readonly scannedAt: number/.test(panel))
   // stateDir must stay unpinned by default, or the env override can never work.
   const cfg = fs.readFileSync(path.join(ROOT, 'src/config.ts'), 'utf8')

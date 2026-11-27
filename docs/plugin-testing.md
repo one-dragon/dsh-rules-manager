@@ -123,6 +123,7 @@
 | 真机冒烟（带 key 真模型） | npm run test:e2e:live：真模型跑一句可外部核验的任务，再解压会话持久化文件验证注入落地。已对本机自建网关（`LIVE_BASE_URL` + `LIVE_MODEL`，凭据走 `LIVE_KEY_ENV` 指定的变量名）实跑，14/14 通过；覆盖形态取自官方 packages/llm/llm-pi-ai/README.md 的 hand-declared gateway 示例 | 已就位 |
 | 录制会话快照 | npm run test:snapshot：录一次真机会话，比对注入正文与规范化 state.json；改一个字符即 exit 1 | 已就位（18/18） |
 | 真浏览器快照 | npm run test:browser：无头 Edge 伺服真实 lib/client.js 渲染面板，六份快照（初次渲染、Global 页签、eta 开关、设置页入口、侧边栏入口、空工作区变体），逐字节比对存档快照 | 已就位（32/32） |
+| README 截图 | npm run panel:shot：无头 Edge 伺服真实 lib/client.js（与宿主加载的是同一份产物），用夹具规则渲染真面板并截浅色 + 深色两张 PNG（scripts/panel-shot.mts → docs/panel.png 与 docs/panel-dark.png）；无浏览器时 SKIPPED 并 exit 0。只出图、不做断言，渲染断言仍归真浏览器快照层；交付检查额外要求两张图是真实 PNG 且大小合理，手画的 SVG 通不过 | 已就位 |
 | 基准 | npm run test:bench：scanAll / renderRulesBlock / attachedRules / read_rules 三次取中位数 | 已就位（8/8） |
 | 真实组合（非单测） | tests/e2e 起真实无头会话；tests/entry.spec.ts 与 tests/client.spec.tsx 是手搭 fake ctx | 已就位（fake ctx 那部分官方判为不够，由 e2e 与集成层补位） |
 | 无 key 车道接入 CI | `.github/workflows/ci.yml` 在 `ubuntu-latest` 上跑 `check`、`test:coverage`、`test:e2e`、`test:snapshot`、`test:integration`，全程零凭据；带 key 的车道不进 CI | 已就位 |

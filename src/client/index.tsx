@@ -86,6 +86,53 @@ export interface RulesPanelProps {
 }
 
 /**
+ * The glyph inside one entry-location segment.
+ *
+ * Three short words on their own read as a loose row of chips and nothing on
+ * screen says what they decide; a small picture of where the entry will live
+ * gives each segment a shape to land on. Drawn with the panel is own stroke so
+ * it follows the text colour of whichever segment is selected, and hidden from
+ * assistive tech because the button label already carries the word.
+ */
+function EntryGlyph({ location }: { location: RulesEntryLocation }) {
+  const frame = (rail: string) => (
+    <svg
+      className="dshrm-entry-ico"
+      viewBox="0 0 16 16"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.4}
+      aria-hidden="true"
+    >
+      <rect x="2" y="2.8" width="12" height="10.4" rx="2.2" />
+      <path d={rail} fill="currentColor" stroke="none" />
+    </svg>
+  )
+  // A rail on the left, on the right, or on both sides: the same picture the
+  // setting itself describes, at the size of a word.
+  if (location === "settings") return frame("M3.8 4.6h2.6v6.8H3.8z")
+  if (location === "sidebar") return frame("M9.6 4.6h2.6v6.8H9.6z")
+  return (
+    <svg
+      className="dshrm-entry-ico"
+      viewBox="0 0 16 16"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.4}
+      aria-hidden="true"
+    >
+      <rect x="2" y="2.8" width="12" height="10.4" rx="2.2" />
+      <path d="M3.8 4.6h2.6v6.8H3.8z" fill="currentColor" stroke="none" />
+      <path d="M9.6 4.6h2.6v6.8H9.6z" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+/**
  * The panel body, laid out like the reference skills-manager.
  *
  * Information density is the point: a titled header, a stat bar, full-width
@@ -433,22 +480,28 @@ export function RulesPanel({ ctx, t, rules, sources, workspace, scannedAt = 0, s
         <div className="dshrm-actions">
           {onSetEntryLocation !== undefined
             ? (
-              /* A group of pressed-state buttons, not a third tablist: two
-                 tablists already sit close together in this panel, and this is
-                 a setting rather than a view switch. */
+              /* A named segmented control, not a third tablist: this picks a
+                 setting, and two real tablists already sit further down the
+                 same column. The name is on screen because three short words
+                 alone say nothing about what they decide, and each segment
+                 carries a glyph for where the entry will live. */
               <div className="dshrm-entry" role="group" aria-label={t('entryLocation')}>
-                {ENTRY_LOCATIONS.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={entryLocation === value ? 'dshrm-entry-btn on' : 'dshrm-entry-btn'}
-                    aria-pressed={entryLocation === value}
-                    disabled={entryPending}
-                    onClick={() => onSetEntryLocation(value)}
-                  >
-                    {t(ENTRY_LABEL[value])}
-                  </button>
-                ))}
+                <span className="dshrm-entry-l" aria-hidden="true">{t('entryLocation')}</span>
+                <div className="dshrm-entry-seg">
+                  {ENTRY_LOCATIONS.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={entryLocation === value ? 'dshrm-entry-btn on' : 'dshrm-entry-btn'}
+                      aria-pressed={entryLocation === value}
+                      disabled={entryPending}
+                      onClick={() => onSetEntryLocation(value)}
+                    >
+                      <EntryGlyph location={value} />
+                      {t(ENTRY_LABEL[value])}
+                    </button>
+                  ))}
+                </div>
               </div>
             )
             : null}
@@ -1355,7 +1408,7 @@ export const TEXT: Record<'en' | 'zh', Record<string, string>> = {
     'entryLocation': 'Entry location',
     'entry.settings': 'Settings',
     'entry.sidebar': 'Sidebar',
-    'entry.both': 'Both',
+    'entry.both': 'Both places',
   },
   zh: {
     title: '规则',
@@ -1459,7 +1512,7 @@ export const TEXT: Record<'en' | 'zh', Record<string, string>> = {
     'entryLocation': '入口位置',
     'entry.settings': '设置页',
     'entry.sidebar': '侧边栏',
-    'entry.both': '两处',
+    'entry.both': '两处都显示',
   },
 }
 

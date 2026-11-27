@@ -10,7 +10,7 @@
 
 ---
 
-![规则面板：左侧是来源，右侧是每条规则的状态与层级](docs/preview.svg)
+![DSH 设置页里的规则面板：三个入口位置开关、左侧来源列表，右侧每条规则的层级、状态与 token 花费](docs/panel.png)
 
 ## 它做什么
 
@@ -204,6 +204,11 @@ Use read rule tool to fetch the rule content if needed. In this section, key is 
 插件带有客户端半边，因此 **插件 → 规则** 既有设置分区，也有侧边栏入口（点开在主栏打开面板）。
 两处展示同一份目录：每条规则的状态与 token 成本，外加搜索框和常驻 token 汇总。
 
+置顶那张图就是这块面板本身，不是示意图：`npm run panel:shot` 把构建好的客户端 bundle
+（`lib/client.js`）伺服给无头 Edge/Chrome，用夹具规则渲染后截图。版式、文案与主题 token 都是
+随包发布的那一套，只有规则数据是造的，且这个脚本不写任何文件。图为中文界面，深色主题版本
+另存为 `docs/panel-dark.png`。
+
 面板围绕用户真正会问的两个问题组织：**这条来自哪个目录？** 和 **它花了我多少 token？**
 
 - **作用域页签** —— 全局 / 项目，默认落在项目。
@@ -265,6 +270,7 @@ npm run test:e2e             # 真实 DSH 会话 + 本地模型 stub，无需凭
 npm run test:e2e:live        # 真模型；需要 DEEPSEEK_API_KEY（或 LIVE_KEY_ENV），未设置时自跳过
 npm run test:snapshot        # 录制的会话转录，逐字节比对
 npm run test:browser         # 真实无头浏览器渲染面板，逐字节比对
+npm run panel:shot           # 同一个浏览器渲染出本 README 展示的截图
 npm run test:bench           # 扫描、渲染、附着与 read_rules 的耗时
 npm run build                # tsdown -> lib/
 npm run verify               # 交付检查（清单、README 主张、只读承诺）

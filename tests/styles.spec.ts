@@ -47,7 +47,7 @@ describe('PANEL_CSS', () => {
       'dshrm-type', 'dshrm-type.is-attached', 'dshrm-tokens', 'dshrm-desc', 'dshrm-row-note',
       'dshrm-switch', 'dshrm-track',
       'dshrm-note', 'dshrm-error', 'dshrm-empty', 'dshrm-full', 'dshrm-retry', 'dshrm-btn',
-      'dshrm-entry', 'dshrm-entry-btn',
+      'dshrm-entry', 'dshrm-entry-l', 'dshrm-entry-seg', 'dshrm-entry-btn', 'dshrm-entry-ico',
     ]
     for (const cls of emitted) {
       expect(PANEL_CSS).toContain(`.${cls}`)

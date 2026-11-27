@@ -31,7 +31,8 @@
     "assets/icon.svg",
     "docs/DETAIL.md",
     "docs/DETAIL.zh.md",
-    "docs/preview.svg",
+    "docs/panel.png",
+    "docs/panel-dark.png",
     "cordis.patch.yml",
     "README.md",
     "README.zh-CN.md",
@@ -81,6 +82,7 @@
     "test:e2e:live": "node --experimental-strip-types tests/e2e/live-model.mts",
     "test:snapshot": "node --experimental-strip-types tests/snapshot/session.snapshot.mts",
     "test:browser": "node --experimental-strip-types tests/browser/panel.browser.mts",
+    "panel:shot": "node --experimental-strip-types scripts/panel-shot.mts",
     "verify": "node --experimental-strip-types scripts/delivery-check.mts"
   },
   "dependencies": {

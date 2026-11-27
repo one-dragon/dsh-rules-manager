@@ -10,7 +10,7 @@ English | [中文](README.zh-CN.md)
 
 ---
 
-![The rules panel: sources on the left, each rule's tier and state on the right](docs/preview.svg)
+![The rules panel in the DSH settings section: the three entry locations, the source list on the left, and each rule's tier, state and token cost on the right](docs/panel.png)
 
 ## What it does
 
@@ -209,6 +209,12 @@ The plugin ships a browser half, so **Plugins → Rules** gets a settings sectio
 entry that opens a panel in the main column. Both show the same catalog: every rule with its state
 and its token cost, plus a search box and a resident-token summary.
 
+The picture at the top is that panel, not a drawing of it: `npm run panel:shot` serves the built
+browser bundle (`lib/client.js`) to headless Edge or Chrome, renders it with fixture rules, and
+captures the result. The layout, the copy and the theme tokens are the shipped ones — only the rule
+data is fabricated, and the shot writes nothing. It is captured in Chinese, with a dark-theme variant
+at `docs/panel-dark.png`.
+
 The panel is organised around the two questions users actually ask: *which directory is this from?* and *what is it costing me?*
 
 - **Scope tabs** — Global / Project, opening on Project.
@@ -276,6 +282,7 @@ npm run test:e2e             # real DSH session + local model stub, no credentia
 npm run test:e2e:live        # real model; needs DEEPSEEK_API_KEY (or LIVE_KEY_ENV), skips without it
 npm run test:snapshot        # recorded session transcript, compared byte for byte
 npm run test:browser         # real headless browser renders the panel, compared byte for byte
+npm run panel:shot           # the same browser renders the screenshots this README shows
 npm run test:bench           # scan, render, attach and read_rules timings
 npm run build                # tsdown -> lib/
 npm run verify               # delivery checks (manifest, README claims, read-only)

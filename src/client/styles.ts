@@ -33,14 +33,28 @@ export const PANEL_CSS = `
 .dshrm-btn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.08))}
 .dshrm-btn:disabled{opacity:.6;cursor:progress}
 /* ---- entry location ---- */
-/* Three pressed-state buttons, not a tablist: this picks a setting rather than a
-   view, and the panel already has two visually similar tablists. Same shape as
-   .dshrm-btn so the header reads as one row of controls. */
-.dshrm-entry{display:flex;gap:2px;padding:2px;border:0.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.3));border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.08))}
-.dshrm-entry-btn{flex:none;padding:4px 10px;font-size:12px;line-height:18px;cursor:pointer;background:transparent;border:0;border-radius:var(--dsw-radius-xs,4px);color:var(--dsw-alias-label-secondary,#b9b9b9);white-space:nowrap}
+/* A segmented control with its name on screen. Three short words in a tray read
+   as loose chips and nothing said what they decided (the aria-label is for
+   screen readers only), while the selected one differed from its neighbours by
+   a wash plus a blue-ish word. The name now sits above the tray, each segment
+   carries a small picture of where the entry lands, and selection is fill +
+   weight + one hairline edge rather than colour alone: in DSH the brand colour
+   is the foreground colour, so a branded selected word carries no weight. Still
+   not a tablist - this picks a setting, and two real tablists sit further down. */
+.dshrm-entry{display:flex;flex-direction:column;gap:3px}
+.dshrm-entry-l{font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--dsw-alias-label-tertiary,#8b8b8b)}
+.dshrm-entry-seg{display:inline-flex;align-items:stretch;gap:2px;padding:2px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.3));border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.08))}
+.dshrm-entry-btn{display:inline-flex;align-items:center;gap:5px;flex:none;padding:5px 10px;font-size:12px;line-height:18px;font-family:inherit;cursor:pointer;background:transparent;border:0;border-radius:var(--dsw-radius-xs,4px);color:var(--dsw-alias-label-secondary,#b9b9b9);white-space:nowrap;transition:background .15s ease,color .15s ease}
 .dshrm-entry-btn:hover{color:var(--dsw-alias-label-primary,inherit)}
-.dshrm-entry-btn.on{background:var(--dsw-alias-bg-layer-1,rgba(127,127,127,.16));color:var(--dsw-alias-brand-primary,#4d6bfe);font-weight:600}
+/* The selected segment is the raised surface of this control: bg-layer-1 is
+   what a raised surface is made of here. No drop shadow - the capsule is 22px
+   tall, so a 2px-down shadow lands on the tray bottom edge, which is exactly
+   the grey line the tablist comments had to remove twice. */
+.dshrm-entry-btn.on{background:var(--dsw-alias-bg-layer-1,rgba(127,127,127,.16));box-shadow:inset 0 0 0 1px var(--dsw-alias-border-l3,rgba(127,127,127,.28));color:var(--dsw-alias-label-primary,inherit);font-weight:600}
+.dshrm-entry-ico{flex:none;width:13px;height:13px;opacity:.7}
+.dshrm-entry-btn.on .dshrm-entry-ico{opacity:1}
 .dshrm-entry-btn:disabled{opacity:.6;cursor:progress}
+.dshrm-entry-btn:focus-visible{outline:var(--dsw-focus-ring-width,1px) solid var(--dsw-focus-ring-color,rgba(77,107,254,.6));outline-offset:1px}
 /* ---- stat bar ---- */
 .dshrm-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:hidden;border:0.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.3));border-radius:var(--dsw-radius-lg,16px);background:var(--dsw-alias-bg-layer-1,transparent)}
 .dshrm-stat{min-width:0;display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:0;font:inherit;text-align:left;background:transparent;color:inherit}
