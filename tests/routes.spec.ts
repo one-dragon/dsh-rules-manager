@@ -170,6 +170,12 @@ describe('apply — host route branches the entry suite leaves uncovered', () =>
     // stateDir pointed at a regular file: the directory the write needs cannot
     // be created, so writeState rejects. The route must report that reason
     // instead of letting the rejection escape as a bare transport error.
+    //
+    // Which syscall reports it is platform-native, so the assertion accepts
+    // either message: a posix host fails inside assertNotSymlink, whose lstat of
+    // the target returns ENOTDIR because a path segment is a file, while a win32
+    // host gets ENOENT from that same lstat, survives it, and fails in the mkdir
+    // that follows with EEXIST.
     const blocker = join(home, 'not-a-directory')
     await writeFile(blocker, 'x', 'utf8')
     const { fetch } = routeContext()
@@ -179,7 +185,7 @@ describe('apply — host route branches the entry suite leaves uncovered', () =>
       expect(response.status).toBe(500)
       const body = await response.json() as { ok: boolean; error: string }
       expect(body.ok).toBe(false)
-      expect(body.error).toContain('EEXIST')
+      expect(body.error).toMatch(/EEXIST|ENOTDIR/)
       expect(existsSync(statePath())).toBe(false)
     } finally {
       setStateDir(home)
