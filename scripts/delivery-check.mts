@@ -102,6 +102,15 @@ check('README 说明 Windows npm 坑', en.includes('exit 126') || en.includes('n
 check('README 提到 safeSlice 上游错误', en.includes('CodeBuddy') && en.includes('safeSlice'))
 check('中文 README 与英文结构对齐', (zh.match(/^## /gm) || []).length === (en.match(/^## /gm) || []).length,
   `en=${(en.match(/^## /gm) || []).length} zh=${(zh.match(/^## /gm) || []).length}`)
+// The two testing documents are claims about this repository, so the numbers in
+// them are checked here rather than trusted: the layer count, the regression-list
+// section, and the spec-file count the unit row quotes.
+const deepDoc = fs.readFileSync(path.join(ROOT, 'docs/plugin-testing.md'), 'utf8')
+const mapDoc = fs.readFileSync(path.join(ROOT, 'docs/testing.md'), 'utf8')
+check('测试深度文档写明官方七层与八行就位表的关系', deepDoc.includes('官方七层') && deepDoc.includes('八行'))
+check('测试深度文档含故意注入回归看红的清单', deepDoc.includes('6.3 故意注入回归看红的实测清单'))
+const specCount = fs.readdirSync(path.join(ROOT, 'tests')).filter((f) => f.endsWith('.spec.ts') || f.endsWith('.spec.tsx')).length
+check(`测试地图的单元层写当前 spec 文件数（${specCount}）`, mapDoc.includes(`${specCount} 个 \`*.spec.ts\``))
 
 console.log('\n════ 5. locale 元数据 ════')
 // The key set and the values are checked here as well as in the client tests:

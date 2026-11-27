@@ -46,7 +46,7 @@
 
 | 层 | 命令 | 需要 API key | 覆盖的测试 | 断言什么 |
 | --- | --- | --- | --- | --- |
-| 单元 | `npm test`（vitest run） | 否 | tests 下 22 个 `*.spec.ts` / `*.spec.tsx`（include 为 `tests/**/*.spec.{ts,tsx}`） | 纯逻辑用真实输入：parse/classify/globs/budget/render/token-count 走纯函数断言；scan/state/config/attach 用 `mkdtemp` 真实临时夹具跑真 `scanAll` 与真读写；entry/client 用手搭 fake ctx 断言注册与注入决策；panel-ui 用 `renderToStaticMarkup` 断言真实标记 |
+| 单元 | `npm test`（vitest run） | 否 | tests 下 25 个 `*.spec.ts` / `*.spec.tsx`（include 为 `tests/**/*.spec.{ts,tsx}`） | 纯逻辑用真实输入：parse/classify/globs/budget/render/token-count 走纯函数断言；scan/state/config/attach 用 `mkdtemp` 真实临时夹具跑真 `scanAll` 与真读写；entry/client 用手搭 fake ctx 断言注册与注入决策；panel-ui 用 `renderToStaticMarkup` 断言真实标记 |
 | 覆盖率门禁 | `npm run test:coverage`（vitest run --coverage） | 否 | vitest.config.ts 的 per-file 100% 门槛 | 官方第 2 层的落点：未覆盖的行往往就是该死代码；`src/types.ts` 只含类型与模块声明、运行时零字节，显式排除在外；阈值写在 vitest.config.ts，被它挡住的文件不通过就算失败 |
 | 真实项目集成 | `npm run test:integration`（node --experimental-strip-types tests/integration/real-project.mts） | 否 | tests/integration/real-project.mts | 需要一个含真实规则文件的项目（DSH_RULES_PROJECT）；未设置时打印跳过并 exit 0，克隆下来默认是绿的。断言：项目根识别、扫描计数（14 条 / always=1 / requested=7 / manual=6）、`<rules>` 包裹与分区、requested 正文不进块、manual 完全不出现、token 预算，以及 `read_rules` 完整往返（绝对路径 / 文件名 / 规则名 / 不存在 / 批量五路，批量输出含 7 个 `<rule>` 块） |
 | 真机冒烟 | `npm run test:e2e`（node --experimental-strip-types tests/e2e/smoke.mts） | 否（零凭据：本机 OpenAI 兼容 stub 顶替模型） | tests/e2e/smoke.mts 与 tests/e2e/fixture/ | 起真实 DSH 无头会话（真实 Loader 组合，在一次性 DSH_HOME 里装入本仓库），断言只读 stub 记录的请求原文：启用时首个请求含 `<rules>` 与常驻正文、按需规则只给目录行、续跑请求复用同一份块；禁用组全程无 `<rules>`；再跑四例对抗输入（不可读目录、灾难性 glob、空项目、20000 字超长规则） |
@@ -79,3 +79,4 @@
 2. 状态码不再是 200 时：URL 失效就换成新路径并保留旧路径一行备注；只是抓取失败就写 FAILED 并保留 URL，同时把依赖该文档的正文论断降级为 UNVERIFIED。
 3. 逐字核对「官方定的四条规矩」的四句引文与行号；官方重排段落时行号会变，引文本身不变。
 4. 若官方新增了测试分层或修改 with-key 政策，同步更新「本插件的测试地图」的层数与每层需不需要 key 的说法。
+5. 单元层的文件数与用例数会变：`npm test` 报出的 Test Files 要同步到本文件第 45 行附近的表格行与 README 的 Development 块，`docs/plugin-testing.md` 第五节那张就位表也引用同一组数字。
