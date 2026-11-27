@@ -260,6 +260,7 @@ npm run test                 # vitest，全量套件（25 个 spec 文件）
 npm run test:coverage        # 同一套件，外加每文件 100% 的覆盖率门禁
 npm run test:integration      # 真实项目 + 真实规则文件
 npm run test:e2e             # 真实 DSH 会话 + 本地模型 stub，无需凭据
+npm run test:e2e:live        # 真模型；需要 DEEPSEEK_API_KEY，未设置时自跳过
 npm run test:snapshot        # 录制的会话转录，逐字节比对
 npm run test:browser         # 真实无头浏览器渲染面板，逐字节比对
 npm run test:bench           # 扫描、渲染、附着与 read_rules 的耗时

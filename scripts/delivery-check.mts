@@ -76,6 +76,8 @@ check('scripts 含 test:e2e:live', typeof pj.scripts?.['test:e2e:live'] === 'str
 check('scripts 含 test:snapshot', typeof pj.scripts?.['test:snapshot'] === 'string')
 check('scripts 含 test:browser', typeof pj.scripts?.['test:browser'] === 'string')
 check('scripts 含 test:coverage', typeof pj.scripts?.['test:coverage'] === 'string')
+const liveLane = fs.readFileSync(path.join(ROOT, 'tests/e2e/live-model.mts'), 'utf8')
+check('真机层可指向自建网关', /LIVE_BASE_URL/.test(liveLane) && /LIVE_MODEL/.test(liveLane))
 check('engines.node 已声明', typeof pj.engines?.node === 'string')
 check('picomatch 在 dependencies（不依赖宿主）', pj.dependencies?.picomatch !== undefined)
 check('客户端 peer 标 optional', pj.peerDependenciesMeta?.['@deepseek-ai/dsh-client-ui-slots']?.optional === true)

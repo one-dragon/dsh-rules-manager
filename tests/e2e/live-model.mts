@@ -4,7 +4,7 @@
  * 依据 https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/docs/testing.md
  * 的 with-key 政策（"A no-key test proves plumbing; only a with-key run proves the agent
  * works against a real model"），并落实同文件的 "Self-skip keeps secretless CI and keyless
- * contributors unblocked"：没有可用 launcher、或没有 DEEPSEEK_API_KEY 时，本用例打印
+ * contributors unblocked"：没有可用 launcher、或配置的凭据环境变量为空时，本用例打印
  * 一行 SKIPPED 并以退出码 0 结束，保持无凭据机器与 CI 可用。
  *
  * 断言遵守同文件第 3 条硬规矩 "Verify the world, not the self-report"：不去搜模型自己的
@@ -40,7 +40,13 @@ const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../', import.meta.url))
 const FIXTURE_DIR = path.join(REPO_ROOT, 'tests', 'e2e', 'fixture')
 const FIXTURE_RULE = path.join('.codebuddy', 'rules', 'resident.mdc')
 const PROFILE = 'live-model-e2e'
-const KEY_ENV = 'DEEPSEEK_API_KEY'
+const DEFAULT_KEY_ENV = 'DEEPSEEK_API_KEY'
+/** 凭据所在的环境变量**名**（不是值）。LIVE_KEY_ENV 可以把它换成自建网关的变量名。 */
+const KEY_ENV = (process.env['LIVE_KEY_ENV'] ?? DEFAULT_KEY_ENV).trim() || DEFAULT_KEY_ENV
+/** 自建 OpenAI 兼容网关的 baseURL；设置后本用例用 --patch 覆盖模型路由，不落到默认的官方路由上。 */
+const GATEWAY_BASE_URL = (process.env['LIVE_BASE_URL'] ?? '').trim()
+/** 网关上的模型 id；与 LIVE_BASE_URL 成对使用。 */
+const GATEWAY_MODEL = (process.env['LIVE_MODEL'] ?? '').trim()
 const RESIDENT_MARKER = 'RESIDENT_MARKER_ALPHA'
 const ONDEMAND_DESCRIPTION = 'ONDEMAND_DESCRIPTION_MARKER'
 const ONDEMAND_BODY = 'ONDEMAND_BODY_MARKER_BETA'
@@ -182,6 +188,33 @@ function collectRulesMessages(files: string[]): RulesMessage[] {
   return hits
 }
 
+/**
+ * 指向自建 OpenAI 兼容网关的 overlay。
+ *
+ * 覆盖 `llm-pi-ai` 的 providers 与 `agent-default-model` 两行而不是 `insert` 新行：
+ * 该适配器的 provider 字典是整体替换，插一条新的 pi-ai 行会因重复注册而报错。
+ * 形态取自官方 packages/llm/llm-pi-ai/README.md 的 hand-declared gateway 示例。
+ */
+function gatewayOverlay(): string {
+  const quote = String.fromCharCode(34)
+  const model = quote + GATEWAY_MODEL + quote
+  return [
+    '- id: llm-pi-ai',
+    '  config:',
+    '    providers:',
+    '      livegateway:',
+    '        apiKeyEnv: ' + KEY_ENV,
+    '        api: openai-completions',
+    '        baseURL: ' + GATEWAY_BASE_URL,
+    '        models:',
+    '          - id: ' + model,
+    '- id: agent-default-model',
+    '  config:',
+    '    provider: livegateway',
+    '    model: ' + model,
+  ].join(NL) + NL
+}
+
 // ------------------------------------------------------------------- main
 
 async function main(): Promise<void> {
@@ -196,6 +229,10 @@ async function main(): Promise<void> {
 
   if ((process.env[KEY_ENV] ?? '').trim().length === 0) {
     out('SKIPPED: 未设置 ' + KEY_ENV + '，带真模型的 Real-API e2e 需要模型凭据；无 key 自跳过，保持无凭据 CI 与无 key 贡献者不被阻塞')
+    return
+  }
+  if (GATEWAY_BASE_URL.length > 0 && GATEWAY_MODEL.length === 0) {
+    out('SKIPPED: 设置了 LIVE_BASE_URL 但没有 LIVE_MODEL；自建网关必须指明模型 id')
     return
   }
   note(KEY_ENV + ': 已设置（值不打印）')
@@ -224,11 +261,23 @@ async function main(): Promise<void> {
     const dumped = await runLauncher(launcher, ['--profile', PROFILE, '--dump-config'], { env: installEnv, timeoutMs: 300000 })
     check('dump-config 里出现 dsh-rules-manager', ((dumped.stdout ?? '') + (dumped.stderr ?? '')).indexOf('dsh-rules-manager') >= 0)
 
+    const overlayPath = GATEWAY_BASE_URL.length === 0 ? null : path.join(base, 'gateway.patch.yml')
+    if (overlayPath !== null) {
+      fs.writeFileSync(overlayPath, gatewayOverlay())
+      note('gateway overlay: ' + overlayPath)
+      note('route: ' + GATEWAY_BASE_URL + ' -> ' + GATEWAY_MODEL + ' (apiKeyEnv ' + KEY_ENV + ')')
+    } else {
+      note('route: profile 默认路由（未设置 LIVE_BASE_URL）')
+    }
+
     section('带真模型的会话（真实任务文本）')
     const ruleFile = path.join(runDir, FIXTURE_RULE)
     const taskText = '请用 read 工具读取 ' + ruleFile + ' 这个文件，然后原样复述其中含 ' + RESIDENT_MARKER + ' 的那一行，不要改写任何字符。'
     note('task: ' + taskText)
-    const session = await runLauncher(launcher, ['--profile', PROFILE, '--json', taskText], { cwd: runDir, env: sessionEnv, timeoutMs: 300000 })
+    const sessionArgs = overlayPath === null
+      ? ['--profile', PROFILE, '--json', taskText]
+      : ['--profile', PROFILE, '--patch', overlayPath, '--json', taskText]
+    const session = await runLauncher(launcher, sessionArgs, { cwd: runDir, env: sessionEnv, timeoutMs: 300000 })
     note('session: status=' + String(session.status) + ' signal=' + String(session.signal) + ' timedOut=' + String(session.timedOut))
     const eventLines = session.stdout.split(NL).filter((l) => l.trim().length > 0)
     out('  final event: ' + (eventLines[eventLines.length - 1] ?? '').slice(0, 400))
