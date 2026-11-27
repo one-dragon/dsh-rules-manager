@@ -108,7 +108,9 @@ export function consumeOutputBudget(
  * range.
  *
  * Note: CodeBuddy's own `safeSlice` tests the *low* range
- * (`0xDC00 <= c <= 0xDFFF`) — verbatim: `56320<=rn&&rn<=57343?tn.slice(0,-1):tn`.
+ * (`0xDC00 <= c <= 0xDFFF`) — verbatim: `56320<=rn&&rn<=57343?tn.slice(0,-1):tn`,
+ * quoted from its shipped bundle when this guard was written, not from the
+ * public docs at https://codebuddy.ai/docs (fetched 2026-11-27, HTTP 200).
  * Measured on `"ab😀cd"` with a limit of 4, that drops a complete pair and
  * returns a lone high surrogate; with a limit of 3 it also returns one. The
  * intended guard is on the high range, which is what this implementation does.
